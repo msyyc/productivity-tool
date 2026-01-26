@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Clone a specific folder from a GitHub repository.
+Clone a specific folder from a GitHub repository using git sparse-checkout.
 Only the target folder is kept, not its parent folders.
 
 Usage:
@@ -13,10 +13,9 @@ Example:
 import os
 import sys
 import re
-import urllib.request
-import json
-import base64
-from urllib.error import HTTPError
+import shutil
+import subprocess
+import tempfile
 
 
 def parse_github_url(url):
@@ -35,7 +34,6 @@ def parse_github_url(url):
     
     owner = match.group(1)
     repo = match.group(2)
-    ref = match.group(3)  # 'tree' or 'blob'
     branch_or_commit = match.group(4)
     path = match.group(5).rstrip('/')
     
@@ -47,97 +45,22 @@ def get_folder_name(path):
     return path.rstrip('/').split('/')[-1]
 
 
-def fetch_github_api(url):
-    """Fetch data from GitHub API."""
-    request = urllib.request.Request(url)
-    request.add_header('Accept', 'application/vnd.github.v3+json')
-    request.add_header('User-Agent', 'Python-GitHub-Folder-Clone')
-    
-    # Add token if available for higher rate limits
-    token = os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
-    if token:
-        request.add_header('Authorization', f'token {token}')
-    
-    try:
-        with urllib.request.urlopen(request) as response:
-            return json.loads(response.read().decode('utf-8'))
-    except HTTPError as e:
-        if e.code == 403:
-            print("Error: GitHub API rate limit exceeded. Set GITHUB_TOKEN environment variable for higher limits.")
-        elif e.code == 404:
-            print(f"Error: Resource not found at {url}")
-        else:
-            print(f"Error: HTTP {e.code} - {e.reason}")
-        raise
-
-
-def download_file(url, dest_path):
-    """Download a file from URL to destination path."""
-    request = urllib.request.Request(url)
-    request.add_header('User-Agent', 'Python-GitHub-Folder-Clone')
-    
-    token = os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
-    if token:
-        request.add_header('Authorization', f'token {token}')
-    
-    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-    
-    with urllib.request.urlopen(request) as response:
-        with open(dest_path, 'wb') as f:
-            f.write(response.read())
-
-
-def clone_folder_recursive(owner, repo, ref, path, dest_dir, base_path):
-    """
-    Recursively clone a folder from GitHub.
-    
-    Args:
-        owner: Repository owner
-        repo: Repository name
-        ref: Branch or commit SHA
-        path: Path in the repository
-        dest_dir: Local destination directory
-        base_path: The original requested path (to calculate relative paths)
-    """
-    api_url = f'https://api.github.com/repos/{owner}/{repo}/contents/{path}?ref={ref}'
-    
-    try:
-        contents = fetch_github_api(api_url)
-    except HTTPError:
-        return False
-    
-    if not isinstance(contents, list):
-        contents = [contents]
-    
-    for item in contents:
-        item_path = item['path']
-        # Calculate relative path from the base folder
-        relative_path = item_path[len(base_path):].lstrip('/')
-        local_path = os.path.join(dest_dir, relative_path) if relative_path else dest_dir
-        
-        if item['type'] == 'dir':
-            os.makedirs(local_path, exist_ok=True)
-            print(f"Creating directory: {relative_path or get_folder_name(base_path)}/")
-            clone_folder_recursive(owner, repo, ref, item_path, dest_dir, base_path)
-        elif item['type'] == 'file':
-            print(f"Downloading: {relative_path}")
-            download_url = item['download_url']
-            if download_url:
-                download_file(download_url, local_path)
-            else:
-                # For large files, use the API to get content
-                file_data = fetch_github_api(item['url'])
-                content = base64.b64decode(file_data['content'])
-                os.makedirs(os.path.dirname(local_path), exist_ok=True)
-                with open(local_path, 'wb') as f:
-                    f.write(content)
-    
-    return True
+def run_git_command(args, cwd=None, check=True):
+    """Run a git command and return the result."""
+    result = subprocess.run(
+        ['git'] + args,
+        cwd=cwd,
+        capture_output=True,
+        text=True
+    )
+    if check and result.returncode != 0:
+        raise RuntimeError(f"Git command failed: git {' '.join(args)}\n{result.stderr}")
+    return result
 
 
 def clone_github_folder(url, output_dir=None):
     """
-    Clone a specific folder from GitHub.
+    Clone a specific folder from GitHub using git sparse-checkout.
     
     Args:
         url: GitHub URL pointing to a folder
@@ -147,6 +70,8 @@ def clone_github_folder(url, output_dir=None):
     owner, repo, ref, path = parse_github_url(url)
     
     folder_name = get_folder_name(path)
+    repo_url = f"https://github.com/{owner}/{repo}.git"
+    
     print(f"Repository: {owner}/{repo}")
     print(f"Ref: {ref}")
     print(f"Path: {path}")
@@ -155,26 +80,78 @@ def clone_github_folder(url, output_dir=None):
     
     # Determine destination directory
     if output_dir:
-        dest_dir = os.path.join(output_dir, folder_name)
+        dest_dir = os.path.abspath(output_dir)
     else:
-        dest_dir = os.path.join(os.getcwd(), folder_name)
+        dest_dir = os.getcwd()
     
-    # Create destination directory
-    os.makedirs(dest_dir, exist_ok=True)
-    print(f"Cloning to: {dest_dir}")
-    print("-" * 50)
+    final_dest = os.path.join(dest_dir, folder_name)
     
-    # Clone the folder
-    success = clone_folder_recursive(owner, repo, ref, path, dest_dir, path)
+    # Check if destination already exists
+    if os.path.exists(final_dest):
+        print(f"Warning: {final_dest} already exists. Removing...")
+        shutil.rmtree(final_dest)
     
-    if success:
+    # Create a temporary directory for the sparse checkout
+    temp_dir = tempfile.mkdtemp(prefix='github_clone_')
+    
+    try:
+        print(f"Using temporary directory: {temp_dir}")
         print("-" * 50)
-        print(f"Successfully cloned '{folder_name}' to {dest_dir}")
-    else:
-        print("Failed to clone folder")
+        
+        # Initialize a new git repository
+        print("Initializing git repository...")
+        run_git_command(['init'], cwd=temp_dir)
+        
+        # Add the remote
+        print("Adding remote...")
+        run_git_command(['remote', 'add', 'origin', repo_url], cwd=temp_dir)
+        
+        # Enable sparse-checkout
+        print("Enabling sparse-checkout...")
+        run_git_command(['config', 'core.sparseCheckout', 'true'], cwd=temp_dir)
+        
+        # Configure sparse-checkout to only include our target path
+        print(f"Setting sparse-checkout path: {path}")
+        sparse_checkout_file = os.path.join(temp_dir, '.git', 'info', 'sparse-checkout')
+        os.makedirs(os.path.dirname(sparse_checkout_file), exist_ok=True)
+        with open(sparse_checkout_file, 'w') as f:
+            f.write(f"{path}\n")
+        
+        # Fetch only the specific ref with depth 1 (shallow clone)
+        print(f"Fetching ref: {ref} (shallow clone)...")
+        run_git_command(['fetch', '--depth', '1', 'origin', ref], cwd=temp_dir)
+        
+        # Checkout the fetched ref
+        print("Checking out files...")
+        run_git_command(['checkout', 'FETCH_HEAD'], cwd=temp_dir)
+        
+        print("-" * 50)
+        
+        # Move the target folder to the destination
+        source_path = os.path.join(temp_dir, path)
+        
+        if not os.path.exists(source_path):
+            raise RuntimeError(f"Target folder not found: {source_path}")
+        
+        print(f"Moving {folder_name} to {dest_dir}...")
+        shutil.move(source_path, final_dest)
+        
+        print("-" * 50)
+        print(f"Successfully cloned '{folder_name}' to {final_dest}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error: {e}")
         return False
-    
-    return True
+        
+    finally:
+        # Clean up temporary directory
+        print("Cleaning up temporary files...")
+        try:
+            shutil.rmtree(temp_dir)
+        except Exception:
+            pass
 
 
 def main():
@@ -187,7 +164,8 @@ def main():
     output_dir = sys.argv[2] if len(sys.argv) > 2 else None
     
     try:
-        clone_github_folder(url, output_dir)
+        success = clone_github_folder(url, output_dir)
+        sys.exit(0 if success else 1)
     except ValueError as e:
         print(f"Error: {e}")
         sys.exit(1)
