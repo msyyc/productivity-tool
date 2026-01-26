@@ -37,8 +37,112 @@ if ($LinkParam) {
     if (-not $link) { [System.Windows.Forms.Application]::Exit() }
 }
 
-# Wait for specified seconds
-Start-Sleep -Seconds ([int]$seconds)
+# Function to check if link is a GitHub PR and extract repo/PR number
+function Get-GitHubPRInfo {
+    param([string]$url)
+    if ($url -match 'https://github\.com/([^/]+/[^/]+)/pull/(\d+)') {
+        return @{
+            Repo = $matches[1]
+            PRNumber = $matches[2]
+        }
+    }
+    return $null
+}
+
+# Function to check PR status
+function Test-PRMerged {
+    param([string]$repo, [string]$prNumber)
+    try {
+        $state = gh pr view $prNumber --json state --template '{{.state}}' --repo $repo 2>$null
+        return $state -eq "MERGED"
+    } catch {
+        return $false
+    }
+}
+
+# Function to check CI status
+function Get-CIStatus {
+    param([string]$repo, [string]$prNumber)
+    try {
+        $checksJson = gh pr checks $prNumber --repo $repo --json state 2>$null
+        if (-not $checksJson) { return "UNKNOWN" }
+        $checks = $checksJson | ConvertFrom-Json
+        if (-not $checks -or $checks.Count -eq 0) { return "UNKNOWN" }
+        
+        # Check if any failed
+        foreach ($check in $checks) {
+            if ($check.state -eq "FAILURE") {
+                return "FAILURE"
+            }
+        }
+        
+        # Check if all are SUCCESS or NEUTRAL
+        $allComplete = $true
+        foreach ($check in $checks) {
+            if ($check.state -notin @("SUCCESS", "NEUTRAL")) {
+                $allComplete = $false
+                break
+            }
+        }
+        if ($allComplete) {
+            return "ALL_COMPLETE"
+        }
+        
+        return "IN_PROGRESS"
+    } catch {
+        return "UNKNOWN"
+    }
+}
+
+# Check if link is a GitHub PR
+$prInfo = Get-GitHubPRInfo -url $link
+$checkIntervalSeconds = 300  # 5 minutes
+
+if ($prInfo) {
+    Write-Host "Detected GitHub PR: $($prInfo.Repo) #$($prInfo.PRNumber)"
+    Write-Host "Will check PR status every 5 minutes..."
+    
+    $startTime = Get-Date
+    $endTime = $startTime.AddSeconds($seconds)
+    
+    while ((Get-Date) -lt $endTime) {
+        # Check if PR is merged
+        Write-Host "Checking PR status..."
+        if (Test-PRMerged -repo $prInfo.Repo -prNumber $prInfo.PRNumber) {
+            Write-Host "PR is MERGED! Showing notification..."
+            break
+        }
+        
+        # Check CI status
+        $ciStatus = Get-CIStatus -repo $prInfo.Repo -prNumber $prInfo.PRNumber
+        Write-Host "CI Status: $ciStatus"
+        
+        if ($ciStatus -eq "FAILURE") {
+            Write-Host "CI has FAILURE! Showing notification..."
+            break
+        }
+        
+        if ($ciStatus -eq "ALL_COMPLETE") {
+            Write-Host "All CI checks passed! Showing notification..."
+            break
+        }
+        
+        # Calculate remaining time
+        $remainingSeconds = ($endTime - (Get-Date)).TotalSeconds
+        if ($remainingSeconds -le 0) {
+            Write-Host "Timer expired. Showing notification..."
+            break
+        }
+        
+        # Wait for next check interval or remaining time, whichever is smaller
+        $waitSeconds = [Math]::Min($checkIntervalSeconds, $remainingSeconds)
+        Write-Host "Next check in $([Math]::Round($waitSeconds / 60, 1)) minutes..."
+        Start-Sleep -Seconds $waitSeconds
+    }
+} else {
+    # Not a GitHub PR link, use original behavior
+    Start-Sleep -Seconds ([int]$seconds)
+}
 
 # Display clickable hyperlink after timer expires
 $form = New-Object System.Windows.Forms.Form
