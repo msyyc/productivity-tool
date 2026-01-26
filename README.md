@@ -31,16 +31,6 @@ python clone_github_folder.py https://github.com/Azure/azure-rest-api-specs/tree
 ## http_client_python_release.py
 A Python script to automate bumping dependencies and releasing a new version of the http-client-python package in the TypeSpec repository. It handles the full release workflow including dependency updates, version bumping, building, and PR creation.
 
-### Features
-- Checks and installs npm-check-updates if needed
-- Resets and syncs with the main branch
-- Creates a dated release branch
-- Updates `@typespec/*` and `@azure-tools/*` dependencies
-- Updates peerDependencies in package.json
-- Runs the version change script
-- Builds the package and commits changes
-- Pushes the branch and creates a PR via GitHub CLI
-
 ### Usage
 ```bash
 # Basic usage
@@ -58,5 +48,30 @@ python http_client_python_release.py C:\dev\typespec
 
 ### Requirements
 - Node.js and npm
+- GitHub CLI (`gh`) for PR creation
+- Git configured with repository access
+
+## emitter_package_update.py
+A Python script to automate bumping `@azure-tools/typespec-python` version in `emitter-package.json` for the Azure SDK for Python repository. It handles the full workflow including version detection, lock file regeneration, and PR creation.
+
+### Usage
+```bash
+# Basic usage
+python emitter_package_update.py <path_to_azure_sdk_for_python_repo>
+
+# Skip PR creation (for testing)
+python emitter_package_update.py <path_to_azure_sdk_for_python_repo> --skip-pr
+
+# Specify version manually (skips auto-detection)
+python emitter_package_update.py <path_to_azure_sdk_for_python_repo> --version 0.46.4
+
+# Example
+python emitter_package_update.py C:\dev\azure-sdk-for-python
+```
+
+### Requirements
+- Node.js and npm
+- `npm-check-updates` (auto-installed if missing)
+- `tsp-client` / `@azure-tools/typespec-client-generator-cli` (auto-installed if missing)
 - GitHub CLI (`gh`) for PR creation
 - Git configured with repository access
