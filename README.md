@@ -51,6 +51,32 @@ python http_client_python_release.py C:\dev\typespec
 - GitHub CLI (`gh`) for PR creation
 - Git configured with repository access
 
+## typespec_python_release.py
+A Python script to automate bumping the `@typespec/http-client-python` dependency and releasing new versions for the Azure/autorest.python repository. It handles the full release workflow including dependency updates, version bumping, building, and PR creation.
+
+### Usage
+```bash
+# Basic usage
+python typespec_python_release.py <path_to_autorest_python_repo>
+
+# Specify a different base branch
+python typespec_python_release.py <path_to_autorest_python_repo> --base-branch feature-branch
+
+# Skip PR creation (for testing)
+python typespec_python_release.py <path_to_autorest_python_repo> --skip-pr
+
+# Skip build step (for testing)
+python typespec_python_release.py <path_to_autorest_python_repo> --skip-build
+
+# Example
+python typespec_python_release.py C:\dev\autorest.python --base-branch my-feature-branch
+```
+
+### Requirements
+- Node.js and pnpm
+- GitHub CLI (`gh`) for PR creation
+- Git configured with repository access
+
 ## emitter_package_update.py
 A Python script to automate bumping `@azure-tools/typespec-python` version in `emitter-package.json` for the Azure SDK for Python repository. It handles the full workflow including version detection, lock file regeneration, and PR creation.
 
