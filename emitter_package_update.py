@@ -85,7 +85,7 @@ def check_prerequisites() -> None:
     print("\n[Step 0] Checking prerequisites...")
     
     # Check npm-check-updates
-    result = run_command("npx npm-check-updates --version", check=False)
+    result = run_command("npx --yes npm-check-updates --version", check=False)
     if result.returncode != 0:
         print("  npm-check-updates not found, installing globally...")
         run_command("npm install -g npm-check-updates")
