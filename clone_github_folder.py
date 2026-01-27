@@ -148,22 +148,27 @@ def clone_github_folder(url, output_dir=None):
             tspconfig_path.write_text(content, encoding="utf-8")
             print(f"Updated {tspconfig_path}")
         
-        print(" === Run the following command to compile the typespec file: === ")
-        print(f"tsp compile {final_dest}/client.tsp --emit @typespec/http-client-python --config {final_dest}/tspconfig.yaml")
-        
-        return True
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        return False
-        
-    finally:
         # Clean up temporary directory
         print("Cleaning up temporary files...")
         try:
             shutil.rmtree(temp_dir)
         except Exception:
             pass
+        
+        print(" === Run the following command to compile the typespec file: === ")
+        final_dest_posix = Path(final_dest).as_posix()
+        print(f"tsp compile {final_dest_posix}/client.tsp --emit @typespec/http-client-python --config {final_dest_posix}/tspconfig.yaml")
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error: {e}")
+        # Clean up temporary directory on error
+        try:
+            shutil.rmtree(temp_dir)
+        except Exception:
+            pass
+        return False
 
 
 def main():
