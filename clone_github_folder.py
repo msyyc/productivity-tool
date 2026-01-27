@@ -139,6 +139,18 @@ def clone_github_folder(url, output_dir=None):
         print("-" * 50)
         print(f"Successfully cloned '{folder_name}' to {final_dest}")
         
+        # Update tspconfig.yaml if it exists
+        from pathlib import Path
+        tspconfig_path = Path(final_dest) / "tspconfig.yaml"
+        if tspconfig_path.exists():
+            content = tspconfig_path.read_text(encoding="utf-8")
+            content = content.replace("@azure-tools/typespec-python", "@typespec/http-client-python")
+            tspconfig_path.write_text(content, encoding="utf-8")
+            print(f"Updated {tspconfig_path}")
+        
+        print(" === Run the following command to compile the typespec file: === ")
+        print(f"tsp compile {final_dest}/client.tsp --emit @typespec/http-client-python --config {final_dest}/tspconfig.yaml")
+        
         return True
         
     except Exception as e:
