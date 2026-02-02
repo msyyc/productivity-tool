@@ -64,10 +64,17 @@ function Test-PRMerged {
 function Get-CIStatus {
     param([string]$repo, [string]$prNumber)
     try {
-        $checksJson = gh pr checks $prNumber --repo $repo --json state 2>$null
+        $checksJson = gh pr checks $prNumber --repo $repo --json name,state 2>$null
         if (-not $checksJson) { return "UNKNOWN" }
         $checks = $checksJson | ConvertFrom-Json
         if (-not $checks -or $checks.Count -eq 0) { return "UNKNOWN" }
+        
+        # If PR is in Azure/azure-rest-api-specs, only watch the specific CI item
+        if ($repo -eq "Azure/azure-rest-api-specs") {
+            $checks = @($checks | Where-Object { $_.name -eq "SDK Validation - Python" })
+            # If the target check isn't present yet, treat as in progress
+            if (-not $checks -or $checks.Count -eq 0) { return "IN_PROGRESS" }
+        }
         
         # Check if any failed
         foreach ($check in $checks) {
