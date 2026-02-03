@@ -19,42 +19,42 @@ def show_pr_link_window(pr_url: str) -> None:
     try:
         import tkinter as tk
         from tkinter import font as tkfont
-        
+
         root = tk.Tk()
         root.title("PR Created Successfully")
         root.geometry("500x120")
         root.resizable(False, False)
-        
+
         # Center the window on screen
         root.update_idletasks()
         x = (root.winfo_screenwidth() // 2) - (500 // 2)
         y = (root.winfo_screenheight() // 2) - (120 // 2)
         root.geometry(f"+{x}+{y}")
-        
+
         # Keep window on top
         root.attributes("-topmost", True)
-        
+
         # Label
         label = tk.Label(root, text="PR created successfully! Click the link below:", pady=10)
         label.pack()
-        
+
         # Hyperlink label
         link_font = tkfont.Font(family="TkDefaultFont", underline=True)
         link_label = tk.Label(root, text=pr_url, fg="blue", cursor="hand2", font=link_font)
         link_label.pack(pady=5)
-        
+
         def open_link(event=None):
             webbrowser.open(pr_url)
             root.destroy()
-        
+
         link_label.bind("<Button-1>", open_link)
-        
+
         # Close button
         close_btn = tk.Button(root, text="Close", command=root.destroy, width=10)
         close_btn.pack(pady=10)
-        
+
         root.mainloop()
-        
+
     except ImportError:
         print(f"\nPR URL: {pr_url}")
         print("(tkinter not available - please open the URL manually)")
@@ -68,22 +68,22 @@ def run_command(cmd: str | list[str], cwd: str | Path | None = None, check: bool
     else:
         print(f"  Running: {' '.join(cmd)}")
         result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
-    
+
     if result.stdout:
         print(result.stdout)
     if result.stderr:
         print(result.stderr, file=sys.stderr)
-    
+
     if check and result.returncode != 0:
         raise RuntimeError(f"Command failed with return code {result.returncode}")
-    
+
     return result
 
 
 def check_prerequisites() -> None:
     """Verify that all required tools are available."""
     print("\n[Step 0] Checking prerequisites...")
-    
+
     # Check npm-check-updates
     result = run_command("npx --yes npm-check-updates --version", check=False)
     if result.returncode != 0:
@@ -92,7 +92,7 @@ def check_prerequisites() -> None:
         print("  npm-check-updates installed successfully.")
     else:
         print("  npm-check-updates is available.")
-    
+
     # Check tsp-client
     result = run_command("tsp-client --version", check=False)
     if result.returncode != 0:
@@ -101,7 +101,7 @@ def check_prerequisites() -> None:
         print("  tsp-client installed successfully.")
     else:
         print("  tsp-client is available.")
-    
+
     # Check GitHub CLI
     result = run_command("gh --version", check=False)
     if result.returncode != 0:
@@ -116,7 +116,7 @@ def check_prerequisites() -> None:
 def reset_and_sync(repo_path: Path) -> None:
     """Reset local changes and sync with main branch."""
     print("\n[Step 1] Resetting and syncing with main...")
-    
+
     run_command("git reset HEAD", cwd=repo_path, check=False)
     run_command("git checkout .", cwd=repo_path)
     run_command("git clean -fd", cwd=repo_path)
@@ -127,60 +127,54 @@ def reset_and_sync(repo_path: Path) -> None:
 def get_latest_version(repo_path: Path) -> str:
     """Determine the latest @azure-tools/typespec-python version."""
     print("\n[Step 2] Determining latest version...")
-    
-    result = run_command(
-        "npx npm-check-updates --packageFile eng/emitter-package.json",
-        cwd=repo_path
-    )
-    
+
+    result = run_command("npx npm-check-updates --packageFile eng/emitter-package.json", cwd=repo_path)
+
     # Parse the output to extract the version
     # Example output line: "@azure-tools/typespec-python  0.45.0  →  0.46.4"
     output = result.stdout + result.stderr
-    match = re.search(r'@azure-tools/typespec-python\s+[\d.]+\s+→\s+([\d.]+)', output)
-    
+    match = re.search(r"@azure-tools/typespec-python\s+[\d.]+\s+→\s+([\d.]+)", output)
+
     if not match:
         # Try alternative pattern (may vary by npm-check-updates version)
-        match = re.search(r'@azure-tools/typespec-python.*?([\d]+\.[\d]+\.[\d]+)\s*$', output, re.MULTILINE)
-    
+        match = re.search(r"@azure-tools/typespec-python.*?([\d]+\.[\d]+\.[\d]+)\s*$", output, re.MULTILINE)
+
     if not match:
         raise RuntimeError(
             "Could not determine latest version of @azure-tools/typespec-python. "
             "Check if there are updates available."
         )
-    
+
     version = match.group(1)
     print(f"  Latest version: {version}")
-    
+
     return version
 
 
 def create_feature_branch(repo_path: Path, version: str) -> str:
     """Create a new feature branch for the version bump."""
     print("\n[Step 3] Creating feature branch...")
-    
+
     branch_name = f"bump-typespec-python-{version}"
-    
+
     run_command(f"git checkout -b {branch_name}", cwd=repo_path)
     print(f"  Created branch: {branch_name}")
-    
+
     return branch_name
 
 
 def update_dependencies(repo_path: Path) -> None:
     """Apply the version update using npm-check-updates."""
     print("\n[Step 4] Updating dependencies...")
-    
-    run_command(
-        "npx npm-check-updates --packageFile eng/emitter-package.json -u",
-        cwd=repo_path
-    )
+
+    run_command("npx npm-check-updates --packageFile eng/emitter-package.json -u", cwd=repo_path)
     print("  emitter-package.json updated.")
 
 
 def generate_lock_file(repo_path: Path) -> None:
     """Regenerate the lock file using tsp-client."""
     print("\n[Step 5] Regenerating lock file...")
-    
+
     run_command("tsp-client generate-lock-file", cwd=repo_path)
     print("  emitter-package-lock.json regenerated.")
 
@@ -188,7 +182,7 @@ def generate_lock_file(repo_path: Path) -> None:
 def commit_changes(repo_path: Path, version: str) -> None:
     """Stage and commit the changes."""
     print("\n[Step 6] Committing changes...")
-    
+
     run_command("git add eng/emitter-package.json eng/emitter-package-lock.json", cwd=repo_path)
     run_command(f'git commit -m "bump typespec-python {version}"', cwd=repo_path)
     print("  Changes committed.")
@@ -197,27 +191,24 @@ def commit_changes(repo_path: Path, version: str) -> None:
 def push_and_create_pr(repo_path: Path, branch_name: str, version: str) -> str | None:
     """Push the branch and create a PR. Returns the PR URL if successful."""
     print("\n[Step 7] Pushing branch...")
-    
+
     run_command(f"git push -u origin {branch_name}", cwd=repo_path)
-    
+
     print("\n[Step 8] Creating PR...")
-    
+
     title = f"bump typespec-python {version}"
     body = f"Bump @azure-tools/typespec-python to version {version}"
-    
-    result = run_command(
-        f'gh pr create --title "{title}" --body "{body}"',
-        cwd=repo_path
-    )
+
+    result = run_command(f'gh pr create --title "{title}" --body "{body}"', cwd=repo_path)
     print("  PR created successfully!")
-    
+
     # Extract PR URL from output
     pr_url = None
     output = result.stdout + result.stderr
-    url_match = re.search(r'https://github\.com/[^\s]+/pull/\d+', output)
+    url_match = re.search(r"https://github\.com/[^\s]+/pull/\d+", output)
     if url_match:
         pr_url = url_match.group(0)
-    
+
     return pr_url
 
 
@@ -225,65 +216,54 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Bump @azure-tools/typespec-python version in emitter-package.json and create a PR"
     )
+    parser.add_argument("repo_path", type=str, help="Path to the root of the Azure SDK for Python repository")
+    parser.add_argument("--skip-pr", action="store_true", help="Skip creating the PR (useful for testing)")
     parser.add_argument(
-        "repo_path",
-        type=str,
-        help="Path to the root of the Azure SDK for Python repository"
+        "--version", type=str, default=None, help="Specify a version to bump to (skips version detection)"
     )
-    parser.add_argument(
-        "--skip-pr",
-        action="store_true",
-        help="Skip creating the PR (useful for testing)"
-    )
-    parser.add_argument(
-        "--version",
-        type=str,
-        default=None,
-        help="Specify a version to bump to (skips version detection)"
-    )
-    
+
     args = parser.parse_args()
-    
+
     repo_path = Path(args.repo_path).resolve()
     emitter_package_path = repo_path / "eng" / "emitter-package.json"
-    
+
     if not repo_path.exists():
         print(f"Error: Repository path does not exist: {repo_path}", file=sys.stderr)
         sys.exit(1)
-    
+
     if not emitter_package_path.exists():
         print(f"Error: emitter-package.json does not exist: {emitter_package_path}", file=sys.stderr)
         sys.exit(1)
-    
+
     print(f"Repository path: {repo_path}")
     print(f"Emitter package: {emitter_package_path}")
-    
+
     try:
         # Prerequisites
         check_prerequisites()
-        
+
         # Step 1: Reset and sync
         reset_and_sync(repo_path)
-        
+
         # Step 2: Determine latest version
         if args.version:
             version = args.version
             print(f"\n[Step 2] Using specified version: {version}")
         else:
             version = get_latest_version(repo_path)
-        
+
         # Step 3: Create feature branch
         branch_name = create_feature_branch(repo_path, version)
-        
+
         # Step 4: Update dependencies
         update_dependencies(repo_path)
-        
+
         # Step 5: Generate lock file
         generate_lock_file(repo_path)
-        
+
         # Step 6: Commit changes
         commit_changes(repo_path, version)
-        
+
         # Step 7-8: Push and create PR
         if args.skip_pr:
             print("\n[Step 7-8] Skipping PR creation (--skip-pr flag)")
@@ -291,12 +271,12 @@ def main() -> None:
             pr_url = push_and_create_pr(repo_path, branch_name, version)
             if pr_url:
                 show_pr_link_window(pr_url)
-        
+
         print("\n" + "=" * 50)
         print("Emitter package update completed successfully!")
         print(f"Version: {version}")
         print("=" * 50)
-        
+
     except Exception as e:
         print(f"\nError: {e}", file=sys.stderr)
         sys.exit(1)
