@@ -129,7 +129,9 @@ if ($prInfo) {
             break
         }
         
-        if ($ciStatus -eq "ALL_COMPLETE") {
+        # For Azure/azure-rest-api-specs, only exit early on failure, wait for timer otherwise
+        # For other repos, exit when all CI checks pass
+        if ($ciStatus -eq "ALL_COMPLETE" -and $prInfo.Repo -ne "Azure/azure-rest-api-specs") {
             Write-Host "All CI checks passed! Showing notification..."
             break
         }
