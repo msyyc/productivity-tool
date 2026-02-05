@@ -260,7 +260,7 @@ def commit_and_push(repo_path: Path) -> None:
     print("\n[Step 6] Committing and pushing...")
 
     run_command('git commit -m "bump version"', cwd=repo_path)
-    run_command("git push origin HEAD", cwd=repo_path)
+    run_command("git push -u origin HEAD", cwd=repo_path)
 
 
 def create_pr_if_needed(repo_path: Path, base_branch: str) -> str | None:
