@@ -106,8 +106,7 @@ def check_prerequisites() -> None:
     result = run_command("gh --version", check=False)
     if result.returncode != 0:
         raise RuntimeError(
-            "GitHub CLI (gh) is not installed. Please install it from https://cli.github.com/ "
-            "or via 'winget install GitHub.cli'"
+            "GitHub CLI (gh) is not installed. Please install it from https://cli.github.com/"
         )
     else:
         print("  GitHub CLI is available.")
