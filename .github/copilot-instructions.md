@@ -10,7 +10,8 @@
 - **autorest repo**: Refers to the [Azure/autorest.python](https://github.com/Azure/autorest.python.git) GitHub repository.
 - **spector case**: Refers to cases in folder "packages/http-specs/specs" of typespec repo.
 - **azure spector case**: Refers to cases in folder "packages/azure-http-specs/specs" of azure typespec repo.
-- **python emitter release pipeline**：[http-client-python](https://dev.azure.com/azure-sdk/internal/_build?definitionId=7257) and [typespec-python](https://dev.azure.com/azure-sdk/internal/_build?definitionId=7075)
+- **autorest repo sync pipeline**: [autorest python sync pipeline](https://dev.azure.com/azure-sdk/internal/_build?definitionId=7257)
+- **python emitter release pipeline**：[http-client-python](https://dev.azure.com/azure-sdk/internal/_build?definitionId=7189&_a=summary) and [typespec-python](https://dev.azure.com/azure-sdk/internal/_build?definitionId=7075)
 
 ## General Guidelines
 
