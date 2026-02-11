@@ -7,9 +7,11 @@ for the Azure SDK for Python repository and creates a PR.
 """
 
 import argparse
+import json
 import re
 import subprocess
 import sys
+import urllib.request
 import webbrowser
 from pathlib import Path
 
@@ -170,9 +172,52 @@ def update_dependencies(repo_path: Path) -> None:
     print("  emitter-package.json updated.")
 
 
+def align_openai_typespec_version(repo_path: Path) -> None:
+    """Align @azure-tools/openai-typespec with the version pinned in azure-rest-api-specs."""
+    print("\n[Step 5] Aligning @azure-tools/openai-typespec with spec repo...")
+
+    spec_package_url = "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/package.json"
+    try:
+        with urllib.request.urlopen(spec_package_url) as response:
+            spec_package = json.loads(response.read().decode())
+    except Exception as e:
+        raise RuntimeError(f"Failed to fetch spec repo package.json: {e}")
+
+    spec_version = spec_package.get("devDependencies", {}).get("@azure-tools/openai-typespec")
+    if not spec_version:
+        print("  @azure-tools/openai-typespec not found in spec repo, skipping.")
+        return
+
+    print(f"  Spec repo pins @azure-tools/openai-typespec at: {spec_version}")
+
+    emitter_package_path = repo_path / "eng" / "emitter-package.json"
+    with open(emitter_package_path, "r") as f:
+        emitter_package = json.load(f)
+
+    # Update in devDependencies if present, otherwise in dependencies
+    updated = False
+    for section in ("devDependencies", "dependencies", "overrides"):
+        if section in emitter_package and "@azure-tools/openai-typespec" in emitter_package[section]:
+            old_version = emitter_package[section]["@azure-tools/openai-typespec"]
+            if old_version != spec_version:
+                emitter_package[section]["@azure-tools/openai-typespec"] = spec_version
+                print(f"  Updated {section}/@azure-tools/openai-typespec: {old_version} -> {spec_version}")
+                updated = True
+            else:
+                print(f"  {section}/@azure-tools/openai-typespec already at {spec_version}, no change needed.")
+
+    if updated:
+        with open(emitter_package_path, "w") as f:
+            json.dump(emitter_package, f, indent=2)
+            f.write("\n")
+        print("  emitter-package.json updated with aligned openai-typespec version.")
+    else:
+        print("  No openai-typespec version change required.")
+
+
 def generate_lock_file(repo_path: Path) -> None:
     """Regenerate the lock file using tsp-client."""
-    print("\n[Step 5] Regenerating lock file...")
+    print("\n[Step 6] Regenerating lock file...")
 
     run_command("tsp-client generate-lock-file", cwd=repo_path)
     print("  emitter-package-lock.json regenerated.")
@@ -180,7 +225,7 @@ def generate_lock_file(repo_path: Path) -> None:
 
 def commit_changes(repo_path: Path, version: str) -> None:
     """Stage and commit the changes."""
-    print("\n[Step 6] Committing changes...")
+    print("\n[Step 7] Committing changes...")
 
     run_command("git add eng/emitter-package.json eng/emitter-package-lock.json", cwd=repo_path)
     run_command(f'git commit -m "bump typespec-python {version}"', cwd=repo_path)
@@ -189,11 +234,11 @@ def commit_changes(repo_path: Path, version: str) -> None:
 
 def push_and_create_pr(repo_path: Path, branch_name: str, version: str) -> str | None:
     """Push the branch and create a PR. Returns the PR URL if successful."""
-    print("\n[Step 7] Pushing branch...")
+    print("\n[Step 8] Pushing branch...")
 
     run_command(f"git push -u origin {branch_name}", cwd=repo_path)
 
-    print("\n[Step 8] Creating PR...")
+    print("\n[Step 9] Creating PR...")
 
     title = f"bump typespec-python {version}"
     body = f"Bump @azure-tools/typespec-python to version {version}"
@@ -257,15 +302,18 @@ def main() -> None:
         # Step 4: Update dependencies
         update_dependencies(repo_path)
 
-        # Step 5: Generate lock file
+        # Step 5: Align openai-typespec with spec repo
+        align_openai_typespec_version(repo_path)
+
+        # Step 6: Generate lock file
         generate_lock_file(repo_path)
 
-        # Step 6: Commit changes
+        # Step 7: Commit changes
         commit_changes(repo_path, version)
 
-        # Step 7-8: Push and create PR
+        # Step 8-9: Push and create PR
         if args.skip_pr:
-            print("\n[Step 7-8] Skipping PR creation (--skip-pr flag)")
+            print("\n[Step 8-9] Skipping PR creation (--skip-pr flag)")
         else:
             pr_url = push_and_create_pr(repo_path, branch_name, version)
             if pr_url:
