@@ -101,3 +101,15 @@ python emitter_package_update.py C:\dev\azure-sdk-for-python
 - `tsp-client` / `@azure-tools/typespec-client-generator-cli` (auto-installed if missing)
 - GitHub CLI (`gh`) for PR creation
 - Git configured with repository access
+
+## alpha_create.py
+A Python script to create the `alpha` folder under `packages/http-client-python` in a TypeSpec repository. The folder contains `client.tsp` and `tspconfig.yaml` with predefined content for quick setup.
+
+### Usage
+```bash
+# Basic usage
+python alpha_create.py <path_to_typespec_repo>
+
+# Example
+python alpha_create.py C:/dev/typespec
+```
