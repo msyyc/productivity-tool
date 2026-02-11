@@ -346,9 +346,15 @@ def check_and_fix_minor_version(repo_path: Path) -> None:
     # Run git diff to inspect CHANGELOG.md files
     result = run_command("git diff", cwd=repo_path)
     diff_output = result.stdout
+    print(" === diff output begins ===")
+    print(diff_output)
+    print(" === diff output ends ===")
 
-    # Check if any CHANGELOG.md contains "### Features"
-    needs_minor_bump = "### Features" in diff_output
+    # Check if any CHANGELOG.md contains "### Features" in newly added lines only
+    needs_minor_bump = any(
+        line.startswith("+") and "### Features" in line
+        for line in diff_output.splitlines()
+    )
 
     if not needs_minor_bump:
         print("  No '### Features' found in CHANGELOGs, keeping patch version")
