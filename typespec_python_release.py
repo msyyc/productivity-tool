@@ -82,7 +82,7 @@ def run_command(cmd: str | list[str], cwd: str | Path | None = None, check: bool
     return result
 
 
-def prepare_branch(repo_path: Path, base_branch: str, current_date: str) -> str:
+def prepare_branch(repo_path: Path, base_branch: str, current_date: str) -> None:
     """Prepare the working branch based on BASE_BRANCH."""
     print("\n[Step 1] Preparing branch...")
 
@@ -98,10 +98,7 @@ def prepare_branch(repo_path: Path, base_branch: str, current_date: str) -> str:
     else:
         run_command(f"git fetch origin {base_branch}", cwd=repo_path)
         run_command(f"git checkout {base_branch}", cwd=repo_path)
-        branch_name = base_branch
-        print(f"  Checked out branch: {branch_name}")
-
-    return branch_name
+        print(f"  Checked out branch: {base_branch}")
 
 
 def get_latest_npm_version(package_name: str) -> str:
@@ -150,9 +147,169 @@ def update_http_client_python_dependency(repo_path: Path, version: str) -> None:
             f.write("\n")  # Add trailing newline
 
 
+def check_prerequisites() -> None:
+    """Verify that npm-check-updates is available."""
+    print("\n[Prerequisites] Checking npm-check-updates...")
+
+    result = run_command("npx npm-check-updates --version", check=False)
+    if result.returncode != 0:
+        print("  npm-check-updates not found, installing globally...")
+        run_command("npm install -g npm-check-updates")
+    else:
+        print("  npm-check-updates is available")
+
+
+def save_spec_dev_dependencies(repo_path: Path) -> dict[str, str]:
+    """Save original devDependencies versions for spec packages before ncu update."""
+    package_file = repo_path / "packages" / "typespec-python" / "package.json"
+
+    with open(package_file, "r", encoding="utf-8") as f:
+        package_data = json.load(f)
+
+    saved = {}
+    dev_deps = package_data.get("devDependencies", {})
+    for pkg in ["@typespec/http-specs", "@azure-tools/azure-http-specs"]:
+        if pkg in dev_deps:
+            saved[pkg] = dev_deps[pkg]
+
+    return saved
+
+
+def update_typespec_dependencies(repo_path: Path) -> None:
+    """Run npm-check-updates to update @typespec/* and @azure-tools/* dependencies."""
+    print("\n[Step 3] Updating @typespec/* and @azure-tools/* dependencies...")
+
+    run_command(
+        "npx npm-check-updates -u --filter @typespec/*,@azure-tools/* "
+        "--packageFile packages/typespec-python/package.json",
+        cwd=repo_path,
+    )
+
+
+def _get_latest_npm_version_silent(package_name: str) -> str | None:
+    """Get the latest version of a package from npm without verbose output."""
+    result = subprocess.run(
+        f"npm view {package_name} version",
+        shell=True,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return result.stdout.strip()
+    return None
+
+
+def update_peer_dependencies(repo_path: Path) -> None:
+    """Update peerDependencies in packages/typespec-python/package.json."""
+    print("\n[Step 4] Updating peerDependencies...")
+
+    package_file = repo_path / "packages" / "typespec-python" / "package.json"
+
+    with open(package_file, "r", encoding="utf-8") as f:
+        package_data = json.load(f)
+
+    peer_deps = package_data.get("peerDependencies", {})
+    if not peer_deps:
+        print("  No peerDependencies found")
+        return
+
+    for pkg_name, current_value in list(peer_deps.items()):
+        # Pattern 1: ">=0.a.b <1.0.0"
+        range_match = re.match(r"^>=(0\.\d+\.\d+)\s+(<\d+\.\d+\.\d+)$", current_value)
+        if range_match:
+            upper_bound = range_match.group(2)
+            latest = _get_latest_npm_version_silent(pkg_name)
+            if latest:
+                new_value = f">={latest} {upper_bound}"
+                if new_value != current_value:
+                    print(f"  {pkg_name}: '{current_value}' -> '{new_value}'")
+                    peer_deps[pkg_name] = new_value
+            continue
+
+        # Pattern 2: "^1.a.b"
+        caret_match = re.match(r"^\^(\d+\.\d+\.\d+)$", current_value)
+        if caret_match:
+            latest = _get_latest_npm_version_silent(pkg_name)
+            if latest:
+                new_value = f"^{latest}"
+                if new_value != current_value:
+                    print(f"  {pkg_name}: '{current_value}' -> '{new_value}'")
+                    peer_deps[pkg_name] = new_value
+            continue
+
+    with open(package_file, "w", encoding="utf-8") as f:
+        json.dump(package_data, f, indent=2)
+        f.write("\n")
+
+
+def _parse_version_tuple(version: str) -> tuple:
+    """Parse a version string into a comparable tuple.
+
+    Handles versions like "0.1.0-alpha.12-dev.5", "0.1.0-alpha.12", "1.2.3".
+    Ordering: 0.1.0-alpha.11 < 0.1.0-alpha.12-dev.5 < 0.1.0-alpha.12
+    """
+    v = version.lstrip("~^")
+
+    dev_num = None
+    if "-dev." in v:
+        v, dev_str = v.rsplit("-dev.", 1)
+        dev_num = int(dev_str)
+
+    alpha_num = None
+    if "-alpha." in v:
+        v, alpha_str = v.rsplit("-alpha.", 1)
+        alpha_num = int(alpha_str)
+
+    parts = tuple(int(x) for x in v.split("."))
+    alpha = alpha_num if alpha_num is not None else float("inf")
+    if dev_num is not None:
+        return (*parts, alpha, 0, dev_num)
+    else:
+        return (*parts, alpha, 1, 0)
+
+
+def verify_spec_dev_dependencies(repo_path: Path, saved_versions: dict[str, str]) -> None:
+    """Verify devDependencies versions for spec packages after ncu update."""
+    print("\n[Step 5] Verifying devDependencies versions for specs...")
+
+    if not saved_versions:
+        print("  No spec devDependencies to verify")
+        return
+
+    package_file = repo_path / "packages" / "typespec-python" / "package.json"
+
+    with open(package_file, "r", encoding="utf-8") as f:
+        package_data = json.load(f)
+
+    dev_deps = package_data.get("devDependencies", {})
+    changed = False
+
+    for pkg_name, original_version in saved_versions.items():
+        if pkg_name not in dev_deps:
+            continue
+
+        updated_version = dev_deps[pkg_name]
+
+        if original_version == updated_version:
+            print(f"  {pkg_name}: unchanged ({original_version})")
+            continue
+
+        if _parse_version_tuple(original_version) > _parse_version_tuple(updated_version):
+            print(f"  {pkg_name}: keeping original '{original_version}' (newer than updated '{updated_version}')")
+            dev_deps[pkg_name] = original_version
+            changed = True
+        else:
+            print(f"  {pkg_name}: keeping updated '{updated_version}' (step 3 works as expected)")
+
+    if changed:
+        with open(package_file, "w", encoding="utf-8") as f:
+            json.dump(package_data, f, indent=2)
+            f.write("\n")
+
+
 def run_version_tool(repo_path: Path) -> None:
     """Run pnpm change version command."""
-    print("\n[Step 3] Running version tool...")
+    print("\n[Step 6] Running version tool...")
 
     run_command("pnpm change version", cwd=repo_path)
 
@@ -184,7 +341,7 @@ def run_version_tool(repo_path: Path) -> None:
 
 def check_and_fix_minor_version(repo_path: Path) -> None:
     """Check if minor version bump is needed and apply it if necessary."""
-    print("\n[Step 4] Checking for minor version bump...")
+    print("\n[Step 7] Checking for minor version bump...")
 
     # Run git diff to inspect CHANGELOG.md files
     result = run_command("git diff", cwd=repo_path)
@@ -246,7 +403,7 @@ def check_and_fix_minor_version(repo_path: Path) -> None:
 
 def build_and_stage(repo_path: Path) -> None:
     """Install dependencies, build, and stage changes."""
-    print("\n[Step 5] Installing dependencies and building...")
+    print("\n[Step 8] Installing dependencies and building...")
 
     run_command("pnpm install", cwd=repo_path)
     run_command("pnpm build", cwd=repo_path)
@@ -257,7 +414,7 @@ def build_and_stage(repo_path: Path) -> None:
 
 def commit_and_push(repo_path: Path) -> None:
     """Commit and push changes."""
-    print("\n[Step 6] Committing and pushing...")
+    print("\n[Step 9] Committing and pushing...")
 
     run_command('git commit -m "bump version"', cwd=repo_path)
     run_command("git push -u origin HEAD", cwd=repo_path)
@@ -265,7 +422,7 @@ def commit_and_push(repo_path: Path) -> None:
 
 def create_pr_if_needed(repo_path: Path, base_branch: str) -> str | None:
     """Create a PR if one doesn't already exist for the current branch. Returns PR URL if created."""
-    print("\n[Step 7] Checking for existing PR...")
+    print("\n[Step 10] Checking for existing PR...")
 
     # Check if PR already exists for current branch
     result = run_command("gh pr view --json url", cwd=repo_path, check=False)
@@ -336,32 +493,43 @@ def main() -> None:
     print(f"Current date: {current_date}")
 
     try:
+        # Prerequisites check
+        if base_branch == "main":
+            check_prerequisites()
+
         # Step 1: Prepare branch
-        branch_name = prepare_branch(repo_path, base_branch, current_date)
+        prepare_branch(repo_path, base_branch, current_date)
 
         # Step 2: Get latest version and update dependencies
         version = get_latest_npm_version("@typespec/http-client-python")
         update_http_client_python_dependency(repo_path, version)
 
-        # Step 3: Run version tool
+        # Steps 3-5: Update dependencies (only if BASE_BRANCH is "main")
+        if base_branch == "main":
+            saved_dev_deps = save_spec_dev_dependencies(repo_path)
+            update_typespec_dependencies(repo_path)
+            update_peer_dependencies(repo_path)
+            verify_spec_dev_dependencies(repo_path, saved_dev_deps)
+
+        # Step 6: Run version tool
         run_version_tool(repo_path)
 
-        # Step 4: Check for minor version bump
+        # Step 7: Check for minor version bump
         check_and_fix_minor_version(repo_path)
 
-        # Step 5: Build and stage
+        # Step 8: Build and stage
         if args.skip_build:
-            print("\n[Step 5] Skipping build (--skip-build flag)")
+            print("\n[Step 8] Skipping build (--skip-build flag)")
             run_command("git add -u", cwd=repo_path)
         else:
             build_and_stage(repo_path)
 
-        # Step 6: Commit and push
+        # Step 9: Commit and push
         commit_and_push(repo_path)
 
-        # Step 7: Create PR
+        # Step 10: Create PR
         if args.skip_pr:
-            print("\n[Step 7] Skipping PR creation (--skip-pr flag)")
+            print("\n[Step 10] Skipping PR creation (--skip-pr flag)")
         else:
             pr_url = create_pr_if_needed(repo_path, base_branch)
             if pr_url:
