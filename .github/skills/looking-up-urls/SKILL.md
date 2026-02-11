@@ -42,3 +42,4 @@ https://github.com/Azure/azure-sdk-for-python/blob/main/sdk/core/azure-core/azur
 - If a local repo path is available (e.g., `C:/dev/azure-rest-api-specs`), search locally first, then construct the remote GitHub URL from the relative path.
 - If the content is not found, say so clearly rather than guessing a URL.
 - When multiple matches exist, return the most relevant match first, then list others.
+- Exclude `examples` folders from search results by default. Only include them if the user explicitly asks for examples.
