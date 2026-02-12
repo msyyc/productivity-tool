@@ -113,3 +113,18 @@ python alpha_create.py <path_to_typespec_repo>
 # Example
 python alpha_create.py C:/dev/typespec
 ```
+
+## release_issue_create.py
+A Python script to automate creating release request issues for Python SDK packages. It searches the Azure REST API specs repo for the package's `readme.python.md`, extracts the service name and target URL, then creates a properly formatted issue under `Azure/sdk-release-request` with the required labels. It also cleans up bot comments and reopens the issue if it was auto-closed.
+
+### Usage
+```bash
+# Basic usage
+python release_issue_create.py --sdk-name <package-name> --tag <readme-tag>
+
+# Example
+python release_issue_create.py --sdk-name managementgroups --tag package-2021-04
+```
+
+### Requirements
+- GitHub CLI (`gh`) authenticated with access to Azure repos

@@ -18,4 +18,5 @@
 
 - **bump http-client-python**: run python script `http_client_python_bump.py` under local typespec repo to update the version of http-client-python in typespec repo, then create a PR to merge the change.
 - **bump typespec-python**: run python script `typespec_python_release.py` under local autorest repo to update the version of typespec-python in autorest repo, then create a PR to merge the change.
-- **bump sdk repo**: update emitter-package.json in local sdk repo to use the latest version of python generator tool, then create a PR to merge the change.
+- **bump sdk repo**: run python script `emitter_package_update.py <sdk-repo-path>` to update emitter-package.json in local sdk repo to use the latest version of python generator tool, then create a PR to merge the change.
+- **create release issue**: run `python release_issue_create.py --sdk-name <package-name> --tag <readme-tag>` to create a release request issue under Azure/sdk-release-request.
