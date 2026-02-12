@@ -161,6 +161,7 @@ def create_issue(title: str, body: str) -> str:
         "--repo", ISSUE_REPO,
         "--title", title,
         "--body", body,
+        "--assignee", "ChenxiJiang333",
     ]
     print(f"  Running: gh issue create --repo {ISSUE_REPO} --title \"{title}\" --body <body>")
     result = subprocess.run(cmd, capture_output=True, text=True)
