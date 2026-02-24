@@ -12,8 +12,8 @@ Complete user-provided partial TypeSpec code into a fully compilable `.tsp` file
 1. Analyze the user's partial TypeSpec code to determine what is missing (imports, using statements, namespace, decorators, etc.)
 2. Determine flavor: **Azure** (uses `@azure-tools/*` packages, Azure.Core, ARM) or **Unbranded** (plain `@typespec/http`)
 3. Assemble the complete file using the appropriate template from [references/templates.md](references/templates.md)
-4. Write the file to the target path (default: `C:\dev\typespec\packages\http-client-python\alpha\client.tsp`)
-5. Compile: `cd C:\dev\typespec\packages\http-client-python && npx tsp compile alpha/client.tsp`
+4. Write the file to the target path (default: `<local-typespec-repo>\packages\http-client-python\alpha\client.tsp`)
+5. Compile: `cd <local-typespec-repo>\packages\http-client-python && tsp compile alpha/client.tsp`
 6. If compilation fails, read the error, fix the code, and retry
 7. Show the user the final compilable code
 
@@ -29,22 +29,22 @@ Complete user-provided partial TypeSpec code into a fully compilable `.tsp` file
 
 ## Target Path
 
-- Default: `C:\dev\typespec\packages\http-client-python\alpha\client.tsp`
+- Default: `<local-typespec-repo>\packages\http-client-python\alpha\client.tsp`
 - If user specifies a different folder, use that instead
 - Create the `alpha` directory if it doesn't exist
 
 ## Compilation
 
-Run from `C:\dev\typespec\packages\http-client-python`:
+Run from `<local-typespec-repo>\packages\http-client-python`:
 
 ```
-npx tsp compile alpha/client.tsp
+tsp compile alpha/client.tsp
 ```
 
 To also generate Python SDK output:
 
 ```
-npx tsp compile alpha/client.tsp --emit @typespec/http-client-python
+tsp compile alpha/client.tsp --emit @typespec/http-client-python
 ```
 
 ## Available Imports
