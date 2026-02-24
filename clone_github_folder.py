@@ -10,6 +10,7 @@ Example:
     python clone_github_folder.py "https://github.com/Azure/azure-rest-api-specs/tree/6de816d0d889ec2b769015125e20f0f9aa58db2b/specification/azurefleet/resource-manager/Microsoft.AzureFleet/AzureFleet"
 """
 
+import argparse
 import os
 import sys
 import re
@@ -170,13 +171,23 @@ def clone_github_folder(url, output_dir=None):
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
-        print("Error: Please provide a GitHub folder URL")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Clone a specific folder from a GitHub repository using git sparse-checkout. "
+                    "Only the target folder is kept, not its parent folders.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+examples:
+  python clone_github_folder.py <github_folder_url>
+  python clone_github_folder.py <github_folder_url> <output_dir>
+  python clone_github_folder.py https://github.com/Azure/azure-rest-api-specs/tree/6de816d0d889ec2b769015125e20f0f9aa58db2b/specification/azurefleet/resource-manager/Microsoft.AzureFleet/AzureFleet
+""",
+    )
+    parser.add_argument("url", type=str, help="GitHub folder URL to clone")
+    parser.add_argument("output_dir", type=str, nargs="?", default=None, help="Optional output directory (defaults to current directory)")
+    args = parser.parse_args()
 
-    url = sys.argv[1]
-    output_dir = sys.argv[2] if len(sys.argv) > 2 else None
+    url = args.url
+    output_dir = args.output_dir
 
     try:
         success = clone_github_folder(url, output_dir)

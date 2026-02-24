@@ -4,6 +4,7 @@ Usage:
     python alpha_create.py C:/dev/typespec
 """
 
+import argparse
 import os
 import sys
 
@@ -38,11 +39,20 @@ options:
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("Usage: python alpha_create.py <typespec_repo_path>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Create the alpha folder under packages/http-client-python in a TypeSpec repository. "
+                    "The folder contains client.tsp and tspconfig.yaml with predefined content.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+examples:
+  python alpha_create.py <path_to_typespec_repo>
+  python alpha_create.py C:/dev/typespec
+""",
+    )
+    parser.add_argument("typespec_repo_path", type=str, help="Path to the root of the TypeSpec repository")
+    args = parser.parse_args()
 
-    typespec_path = sys.argv[1]
+    typespec_path = args.typespec_repo_path
     alpha_dir = os.path.join(typespec_path, "packages", "http-client-python", "alpha")
     os.makedirs(alpha_dir, exist_ok=True)
 

@@ -258,7 +258,15 @@ def push_and_create_pr(repo_path: Path, branch_name: str, version: str) -> str |
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Bump @azure-tools/typespec-python version in emitter-package.json and create a PR"
+        description="Bump @azure-tools/typespec-python version in emitter-package.json and create a PR",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+examples:
+  python emitter_package_update.py <path_to_azure_sdk_for_python_repo>
+  python emitter_package_update.py <path_to_azure_sdk_for_python_repo> --skip-pr
+  python emitter_package_update.py <path_to_azure_sdk_for_python_repo> --version 0.46.4
+  python emitter_package_update.py C:\\dev\\azure-sdk-for-python
+""",
     )
     parser.add_argument("repo_path", type=str, help="Path to the root of the Azure SDK for Python repository")
     parser.add_argument("--skip-pr", action="store_true", help="Skip creating the PR (useful for testing)")

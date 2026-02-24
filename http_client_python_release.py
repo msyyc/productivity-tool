@@ -269,7 +269,17 @@ def push_and_create_pr(repo_path: Path, branch_name: str) -> str | None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Bump dependencies and release a new version of http-client-python")
+    parser = argparse.ArgumentParser(
+        description="Bump dependencies and release a new version of http-client-python",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+examples:
+  python http_client_python_release.py <path_to_typespec_repo>
+  python http_client_python_release.py <path_to_typespec_repo> --skip-pr
+  python http_client_python_release.py <path_to_typespec_repo> --skip-build
+  python http_client_python_release.py C:\\dev\\typespec
+""",
+    )
     parser.add_argument("repo_path", type=str, help="Path to the root of the microsoft/typespec repository")
     parser.add_argument("--skip-pr", action="store_true", help="Skip creating the PR (useful for testing)")
     parser.add_argument("--skip-build", action="store_true", help="Skip the build step (useful for testing)")

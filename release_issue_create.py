@@ -236,7 +236,13 @@ def reopen_if_closed(issue_url: str) -> None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Create a release request issue for a Python SDK package."
+        description="Create a release request issue for a Python SDK package.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+examples:
+  python release_issue_create.py --sdk-name <package-name> --tag <readme-tag>
+  python release_issue_create.py --sdk-name managementgroups --tag package-2021-04
+""",
     )
     parser.add_argument(
         "--sdk-name",

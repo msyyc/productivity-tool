@@ -462,7 +462,16 @@ def create_pr_if_needed(repo_path: Path, base_branch: str) -> str | None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Bump @typespec/http-client-python dependency and release new versions for Azure/autorest.python"
+        description="Bump @typespec/http-client-python dependency and release new versions for Azure/autorest.python",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+examples:
+  python typespec_python_release.py <path_to_autorest_python_repo>
+  python typespec_python_release.py <path_to_autorest_python_repo> --base-branch feature-branch
+  python typespec_python_release.py <path_to_autorest_python_repo> --skip-pr
+  python typespec_python_release.py <path_to_autorest_python_repo> --skip-build
+  python typespec_python_release.py C:\\dev\\autorest.python --base-branch my-feature-branch
+""",
     )
     parser.add_argument("repo_path", type=str, help="Path to the root of the Azure/autorest.python repository")
     parser.add_argument("--base-branch", type=str, default="main", help="The branch to base changes on (default: main)")
