@@ -128,3 +128,6 @@ python release_issue_create.py --sdk-name managementgroups --tag package-2021-04
 
 ### Requirements
 - GitHub CLI (`gh`) authenticated with access to Azure repos
+
+## pr-tracker.html
+A single-page HTML dashboard that tracks open GitHub PRs authored by or assigned to `msyyc` across the `microsoft/typespec`, `Azure/typespec-azure`, and `Azure/autorest.python` repositories. It also includes PRs labeled `emitter:client:python` in the typespec repo. The page displays PR stats, CI status, labels, and supports a hardcoded ignore list to hide specific PR numbers. Just open the file in a browser — no build step required.

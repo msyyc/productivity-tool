@@ -329,6 +329,10 @@
                     <div class="number" id="typespec-azure-count">0</div>
                     <div class="label">TypeSpec-Azure Repo</div>
                 </div>
+                <div class="stat-card">
+                    <div class="number" id="autorest-python-count">0</div>
+                    <div class="label">Autorest.Python Repo</div>
+                </div>
             </div>
         </div>
 
@@ -344,10 +348,12 @@
     <script>
         const REPOS = [
             { owner: 'microsoft', name: 'typespec', fullName: 'microsoft/typespec' },
-            { owner: 'Azure', name: 'typespec-azure', fullName: 'Azure/typespec-azure' }
+            { owner: 'Azure', name: 'typespec-azure', fullName: 'Azure/typespec-azure' },
+            { owner: 'Azure', name: 'autorest.python', fullName: 'Azure/autorest.python' }
         ];
 
         const USERNAME = 'msyyc';
+        const IGNORED_PRS = [9530, 9553, 9577, 9730, 9742];
 
         function getHeaders() {
             return {
@@ -485,6 +491,11 @@
                 refreshBtn.style.display = 'block';
                 lastUpdatedEl.style.display = 'block';
 
+                // Filter out ignored PRs
+                results.forEach(result => {
+                    result.prs = result.prs.filter(pr => !IGNORED_PRS.includes(pr.number));
+                });
+
                 // Calculate stats
                 let totalPRs = 0;
                 const repoStats = {};
@@ -497,6 +508,7 @@
                 document.getElementById('total-prs').textContent = totalPRs;
                 document.getElementById('typespec-count').textContent = repoStats['typespec'] || 0;
                 document.getElementById('typespec-azure-count').textContent = repoStats['typespec-azure'] || 0;
+                document.getElementById('autorest-python-count').textContent = repoStats['autorest.python'] || 0;
 
                 // Display PRs by repo
                 results.forEach(({ repo, prs }) => {
