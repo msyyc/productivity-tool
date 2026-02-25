@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>msyyc PR Tracker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header .subtitle {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+            min-width: 150px;
+        }
+
+        .stat-card .number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .stat-card .label {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .loading {
+            text-align: center;
+            color: white;
+            font-size: 1.2em;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 4px solid white;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .repo-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+
+        .repo-title {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #333;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .repo-title .badge {
+            background: #667eea;
+            color: white;
+            padding: 3px 12px;
+            border-radius: 20px;
+            font-size: 0.6em;
+            font-weight: normal;
+        }
+
+        .pr-list {
+            display: grid;
+            gap: 15px;
+        }
+
+        .pr-card {
+            border: 1px solid #e1e4e8;
+            border-radius: 8px;
+            padding: 15px;
+            transition: all 0.3s ease;
+            background: #fafbfc;
+        }
+
+        .pr-card:hover {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+            background: white;
+        }
+
+        .pr-header {
+            display: flex;
+            align-items: start;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .pr-number {
+            background: #667eea;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 0.9em;
+            flex-shrink: 0;
+        }
+
+        .pr-title {
+            font-size: 1.1em;
+            color: #0366d6;
+            text-decoration: none;
+            font-weight: 600;
+            flex: 1;
+            word-break: break-word;
+        }
+
+        .pr-title:hover {
+            text-decoration: underline;
+        }
+
+        .pr-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            font-size: 0.85em;
+            color: #586069;
+            margin-top: 10px;
+        }
+
+        .pr-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .pr-meta-item strong {
+            color: #333;
+        }
+
+        .state-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .state-open {
+            background: #dcffe4;
+            color: #22863a;
+        }
+
+        .state-closed {
+            background: #ffd1d1;
+            color: #cb2431;
+        }
+
+        .state-merged {
+            background: #e1d4ff;
+            color: #6f42c1;
+        }
+
+        .ci-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .ci-success {
+            background: #dcffe4;
+            color: #22863a;
+        }
+
+        .ci-failure {
+            background: #ffd1d1;
+            color: #cb2431;
+        }
+
+        .ci-pending {
+            background: #fff8c5;
+            color: #735c0f;
+        }
+
+        .ci-none {
+            background: #f1f1f1;
+            color: #666;
+        }
+
+        .labels {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .label {
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 0.75em;
+            font-weight: 600;
+        }
+
+        .error {
+            background: #fff;
+            border: 2px solid #cb2431;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            color: #cb2431;
+        }
+
+        .refresh-btn {
+            background: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1em;
+            font-weight: 600;
+            color: #667eea;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            display: block;
+            margin: 20px auto;
+        }
+
+        .refresh-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .refresh-btn:active {
+            transform: translateY(0);
+        }
+
+        .last-updated {
+            text-align: center;
+            color: white;
+            opacity: 0.8;
+            font-size: 0.9em;
+            margin-top: 20px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 msyyc PR Tracker</h1>
+            <div class="subtitle">Tracking PRs authored by or assigned to msyyc</div>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <div>Fetching PRs from GitHub...</div>
+        </div>
+
+        <div id="stats" style="display: none;">
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="number" id="total-prs">0</div>
+                    <div class="label">Total Open PRs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number" id="typespec-count">0</div>
+                    <div class="label">TypeSpec Repo</div>
+                </div>
+                <div class="stat-card">
+                    <div class="number" id="typespec-azure-count">0</div>
+                    <div class="label">TypeSpec-Azure Repo</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="content"></div>
+
+        <button class="refresh-btn" onclick="fetchAllPRs()" style="display: none;" id="refresh-btn">
+            🔄 Refresh Data
+        </button>
+
+        <div class="last-updated" id="last-updated" style="display: none;"></div>
+    </div>
+
+    <script>
+        const REPOS = [
+            { owner: 'microsoft', name: 'typespec', fullName: 'microsoft/typespec' },
+            { owner: 'Azure', name: 'typespec-azure', fullName: 'Azure/typespec-azure' }
+        ];
+
+        const USERNAME = 'msyyc';
+
+        function getHeaders() {
+            return {
+                'Accept': 'application/vnd.github.v3+json'
+            };
+        }
+
+        async function fetchCIStatus(repo, pr) {
+            try {
+                const url = `https://api.github.com/repos/${repo.owner}/${repo.name}/commits/${pr.head.sha}/check-runs`;
+                const response = await fetch(url, {
+                    headers: getHeaders()
+                });
+
+                if (!response.ok) {
+                    console.warn(`Failed to fetch CI status for PR #${pr.number}`);
+                    return { state: 'none', total: 0 };
+                }
+
+                const data = await response.json();
+                const checkRuns = data.check_runs || [];
+
+                if (checkRuns.length === 0) {
+                    return { state: 'none', total: 0 };
+                }
+
+                // Count check results
+                const total = checkRuns.length;
+                const success = checkRuns.filter(run => run.conclusion === 'success').length;
+                const failure = checkRuns.filter(run => run.conclusion === 'failure' || run.conclusion === 'cancelled').length;
+                const pending = checkRuns.filter(run => run.status === 'in_progress' || run.status === 'queued' || run.conclusion === null).length;
+
+                // Determine overall state
+                let state;
+                if (pending > 0) {
+                    state = 'pending';
+                } else if (failure > 0) {
+                    state = 'failure';
+                } else if (success === total) {
+                    state = 'success';
+                } else {
+                    state = 'none';
+                }
+
+                return { state, total, success, failure, pending };
+            } catch (error) {
+                console.warn(`Error fetching CI status for PR #${pr.number}:`, error);
+                return { state: 'none', total: 0 };
+            }
+        }
+
+        async function fetchPRsFromRepo(repo) {
+            const prs = [];
+            let page = 1;
+            const perPage = 100;
+
+            while (true) {
+                const url = `https://api.github.com/repos/${repo.owner}/${repo.name}/pulls?state=open&per_page=${perPage}&page=${page}`;
+                
+                try {
+                    const response = await fetch(url, {
+                        headers: getHeaders()
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 403) {
+                            const rateLimitRemaining = response.headers.get('X-RateLimit-Remaining');
+                            const rateLimitReset = response.headers.get('X-RateLimit-Reset');
+                            const resetDate = rateLimitReset ? new Date(rateLimitReset * 1000).toLocaleTimeString() : 'unknown';
+                            
+                            throw new Error(`GitHub API rate limit exceeded. Unauthenticated requests are limited to 60 per hour. Rate limit resets at ${resetDate}. Note: This tracker uses unauthenticated GitHub API requests.`);
+                        }
+                        throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    if (data.length === 0) break;
+
+                    // Filter PRs where author is msyyc or assignee is msyyc
+                    // For typespec repo, also include PRs with label 'emitter:client:python'
+                    const filteredPRs = data.filter(pr => {
+                        const isAuthor = pr.user && pr.user.login === USERNAME;
+                        const isAssignee = pr.assignees && pr.assignees.some(assignee => assignee.login === USERNAME);
+                        const hasClientPythonLabel = repo.name === 'typespec' && pr.labels && pr.labels.some(label => label.name === 'emitter:client:python');
+                        return isAuthor || isAssignee || hasClientPythonLabel;
+                    });
+
+                    // Fetch CI status for each filtered PR
+                    const prsWithCI = await Promise.all(
+                        filteredPRs.map(async pr => {
+                            const ciStatus = await fetchCIStatus(repo, pr);
+                            return { ...pr, ciStatus };
+                        })
+                    );
+
+                    prs.push(...prsWithCI);
+
+                    // If we got less than perPage results, we've reached the end
+                    if (data.length < perPage) break;
+
+                    page++;
+                } catch (error) {
+                    console.error(`Error fetching PRs from ${repo.fullName}:`, error);
+                    throw error;
+                }
+            }
+
+            return prs;
+        }
+
+        async function fetchAllPRs() {
+            const loadingEl = document.getElementById('loading');
+            const contentEl = document.getElementById('content');
+            const statsEl = document.getElementById('stats');
+            const refreshBtn = document.getElementById('refresh-btn');
+            const lastUpdatedEl = document.getElementById('last-updated');
+
+            loadingEl.style.display = 'block';
+            contentEl.innerHTML = '';
+            statsEl.style.display = 'none';
+            refreshBtn.style.display = 'none';
+            lastUpdatedEl.style.display = 'none';
+
+            try {
+                const results = await Promise.all(
+                    REPOS.map(async repo => {
+                        const prs = await fetchPRsFromRepo(repo);
+                        return { repo, prs };
+                    })
+                );
+
+                loadingEl.style.display = 'none';
+                statsEl.style.display = 'block';
+                refreshBtn.style.display = 'block';
+                lastUpdatedEl.style.display = 'block';
+
+                // Calculate stats
+                let totalPRs = 0;
+                const repoStats = {};
+
+                results.forEach(({ repo, prs }) => {
+                    totalPRs += prs.length;
+                    repoStats[repo.name] = prs.length;
+                });
+
+                document.getElementById('total-prs').textContent = totalPRs;
+                document.getElementById('typespec-count').textContent = repoStats['typespec'] || 0;
+                document.getElementById('typespec-azure-count').textContent = repoStats['typespec-azure'] || 0;
+
+                // Display PRs by repo
+                results.forEach(({ repo, prs }) => {
+                    const section = document.createElement('div');
+                    section.className = 'repo-section';
+
+                    const title = document.createElement('div');
+                    title.className = 'repo-title';
+                    title.innerHTML = `
+                        <span>${repo.fullName}</span>
+                        <span class="badge">${prs.length} PRs</span>
+                    `;
+                    section.appendChild(title);
+
+                    if (prs.length === 0) {
+                        const emptyState = document.createElement('div');
+                        emptyState.className = 'empty-state';
+                        emptyState.textContent = 'No PRs found for msyyc';
+                        section.appendChild(emptyState);
+                    } else {
+                        const prList = document.createElement('div');
+                        prList.className = 'pr-list';
+
+                        // Sort PRs by PR number descending (largest first)
+                        prs.sort((a, b) => b.number - a.number);
+
+                        prs.forEach(pr => {
+                            const prCard = createPRCard(pr);
+                            prList.appendChild(prCard);
+                        });
+
+                        section.appendChild(prList);
+                    }
+
+                    contentEl.appendChild(section);
+                });
+
+                // Update last updated time
+                const now = new Date();
+                lastUpdatedEl.textContent = `Last updated: ${now.toLocaleString()}`;
+
+            } catch (error) {
+                loadingEl.style.display = 'none';
+                const isRateLimitError = error.message.includes('rate limit');
+                contentEl.innerHTML = `
+                    <div class="error">
+                        <h3>❌ Error fetching PRs</h3>
+                        <p>${error.message}</p>
+                        ${isRateLimitError ? 
+                            '<p><strong>💡 Note:</strong> GitHub limits unauthenticated API requests to 60 per hour. Please wait for the rate limit to reset or try again later.</p>' : 
+                            '<p>Please check your internet connection and try again.</p>'
+                        }
+                    </div>
+                `;
+                refreshBtn.style.display = 'block';
+            }
+        }
+
+        function createPRCard(pr) {
+            const card = document.createElement('div');
+            card.className = 'pr-card';
+
+            const stateClass = pr.merged_at ? 'state-merged' : `state-${pr.state}`;
+            const stateText = pr.merged_at ? 'Merged' : pr.state.charAt(0).toUpperCase() + pr.state.slice(1);
+
+            const isAuthor = pr.user && pr.user.login === USERNAME;
+            const isAssignee = pr.assignees && pr.assignees.some(assignee => assignee.login === USERNAME);
+            const role = isAuthor ? '👤 Author' : '📋 Assignee';
+
+            const createdDate = new Date(pr.created_at).toLocaleDateString();
+            const updatedDate = new Date(pr.updated_at).toLocaleDateString();
+
+            // CI Status display
+            let ciStatusHTML = '';
+            if (pr.ciStatus) {
+                const { state, total, success, failure, pending } = pr.ciStatus;
+                let ciIcon = '';
+                let ciText = '';
+                let ciClass = '';
+
+                switch (state) {
+                    case 'success':
+                        ciIcon = '✓';
+                        ciText = `CI: ${success}/${total} passed`;
+                        ciClass = 'ci-success';
+                        break;
+                    case 'failure':
+                        ciIcon = '✗';
+                        ciText = `CI: ${failure} failed`;
+                        ciClass = 'ci-failure';
+                        break;
+                    case 'pending':
+                        ciIcon = '●';
+                        ciText = `CI: ${pending} pending`;
+                        ciClass = 'ci-pending';
+                        break;
+                    case 'none':
+                        ciIcon = '○';
+                        ciText = 'No CI';
+                        ciClass = 'ci-none';
+                        break;
+                }
+
+                ciStatusHTML = `
+                    <span class="pr-meta-item">
+                        <span class="ci-status-badge ${ciClass}">${ciIcon} ${ciText}</span>
+                    </span>
+                `;
+            }
+
+            card.innerHTML = `
+                <div class="pr-header">
+                    <span class="pr-number">#${pr.number}</span>
+                    <a href="${pr.html_url}" target="_blank" class="pr-title">${escapeHtml(pr.title)}</a>
+                </div>
+                <div class="pr-meta">
+                    ${ciStatusHTML}
+                    <span class="pr-meta-item">
+                        <strong>Role:</strong> ${role}
+                    </span>
+                    <span class="pr-meta-item">
+                        <strong>Created:</strong> ${createdDate}
+                    </span>
+                    <span class="pr-meta-item">
+                        <strong>Updated:</strong> ${updatedDate}
+                    </span>
+                    ${pr.user ? `
+                    <span class="pr-meta-item">
+                        <strong>By:</strong> ${pr.user.login}
+                    </span>
+                    ` : ''}
+                </div>
+                ${pr.labels && pr.labels.length > 0 ? `
+                <div class="labels">
+                    ${pr.labels.map(label => `
+                        <span class="label" style="background: #${label.color}; color: ${getContrastColor(label.color)}">
+                            ${escapeHtml(label.name)}
+                        </span>
+                    `).join('')}
+                </div>
+                ` : ''}
+            `;
+
+            return card;
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        function getContrastColor(hexColor) {
+            // Convert hex to RGB
+            const r = parseInt(hexColor.substr(0, 2), 16);
+            const g = parseInt(hexColor.substr(2, 2), 16);
+            const b = parseInt(hexColor.substr(4, 2), 16);
+            
+            // Calculate luminance
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            
+            return luminance > 0.5 ? '#000' : '#fff';
+        }
+
+        // Fetch PRs on page load
+        fetchAllPRs();
+    </script>
+</body>
+</html>
