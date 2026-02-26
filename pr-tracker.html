@@ -491,9 +491,11 @@
                 refreshBtn.style.display = 'block';
                 lastUpdatedEl.style.display = 'block';
 
-                // Filter out ignored PRs
+                // Filter out ignored PRs (only for typespec repo)
                 results.forEach(result => {
-                    result.prs = result.prs.filter(pr => !IGNORED_PRS.includes(pr.number));
+                    if (result.repo.name === 'typespec') {
+                        result.prs = result.prs.filter(pr => !IGNORED_PRS.includes(pr.number));
+                    }
                 });
 
                 // Calculate stats
