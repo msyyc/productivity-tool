@@ -146,6 +146,7 @@ def update_dependencies(package_dir: Path) -> None:
         **original_package_data.get("devDependencies", {}),
     }
 
+    run_command("npm install -g npm-check-updates@latest", cwd=package_dir)
     run_command(
         "npx npm-check-updates -u --filter @typespec/*,@azure-tools/* --packageFile package.json", cwd=package_dir
     )
