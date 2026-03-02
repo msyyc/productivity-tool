@@ -138,6 +138,12 @@
             background: white;
         }
 
+        .pr-card.draft {
+            opacity: 0.6;
+            background: #f0f0f0;
+            border-style: dashed;
+        }
+
         .pr-header {
             display: flex;
             align-items: start;
@@ -353,7 +359,7 @@
         ];
 
         const USERNAME = 'msyyc';
-        const IGNORED_PRS = [9427, 9530, 9553, 9577, 9730, 9742];
+        const IGNORED_PRS = [9427, 9530, 9553, 9577, 9730, 9742, 9838];
 
         function getHeaders() {
             return {
@@ -571,7 +577,7 @@
 
         function createPRCard(pr) {
             const card = document.createElement('div');
-            card.className = 'pr-card';
+            card.className = 'pr-card' + (pr.draft ? ' draft' : '');
 
             const stateClass = pr.merged_at ? 'state-merged' : `state-${pr.state}`;
             const stateText = pr.merged_at ? 'Merged' : pr.state.charAt(0).toUpperCase() + pr.state.slice(1);
