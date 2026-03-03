@@ -313,7 +313,7 @@
     <div class="container">
         <div class="header">
             <h1>🚀 msyyc PR Tracker</h1>
-            <div class="subtitle">Tracking PRs authored by or assigned to msyyc</div>
+            <div class="subtitle">Tracking msyyc PRs plus ARM signed-off Python breaking-change PRs</div>
         </div>
 
         <div id="loading" class="loading">
@@ -352,10 +352,13 @@
     </div>
 
     <script>
+        const BREAKING_CHANGE_QUERY = 'is:open is:pr label:CI-BreakingChange-Python-Track2,CI-BreakingChange-Python,BreakingChange-Python-Sdk,BreakingChange-Python-Sdk-Suppression -label:Approved-SdkBreakingChange-Python,BreakingChange-Python-Sdk-Suppression-Approved,BreakingChange-Python-Sdk-Approved label:ARMSignedOff';
         const REPOS = [
             { owner: 'microsoft', name: 'typespec', fullName: 'microsoft/typespec' },
             { owner: 'Azure', name: 'typespec-azure', fullName: 'Azure/typespec-azure' },
-            { owner: 'Azure', name: 'autorest.python', fullName: 'Azure/autorest.python' }
+            { owner: 'Azure', name: 'autorest.python', fullName: 'Azure/autorest.python' },
+            { owner: 'Azure', name: 'azure-rest-api-specs', fullName: 'Azure/azure-rest-api-specs', searchQuery: BREAKING_CHANGE_QUERY },
+            { owner: 'Azure', name: 'azure-rest-api-specs-pr', fullName: 'Azure/azure-rest-api-specs-pr', searchQuery: BREAKING_CHANGE_QUERY }
         ];
 
         const USERNAME = 'msyyc';
@@ -413,6 +416,12 @@
         }
 
         async function fetchPRsFromRepo(repo) {
+            delete repo.searchUnavailableReason;
+
+            if (repo.searchQuery) {
+                return fetchPRsBySearch(repo);
+            }
+
             const prs = [];
             let page = 1;
             const perPage = 100;
@@ -467,6 +476,75 @@
                     console.error(`Error fetching PRs from ${repo.fullName}:`, error);
                     throw error;
                 }
+            }
+
+            return prs;
+        }
+
+        async function fetchPRDetail(repo, prNumber) {
+            const url = `https://api.github.com/repos/${repo.owner}/${repo.name}/pulls/${prNumber}`;
+            const response = await fetch(url, {
+                headers: getHeaders()
+            });
+
+            if (!response.ok) {
+                console.warn(`Failed to fetch PR details for #${prNumber} in ${repo.fullName}`);
+                return null;
+            }
+
+            return response.json();
+        }
+
+        async function fetchPRsBySearch(repo) {
+            const prs = [];
+            let page = 1;
+            const perPage = 100;
+            const query = `${repo.searchQuery} repo:${repo.fullName}`;
+
+            while (true) {
+                const url = `https://api.github.com/search/issues?q=${encodeURIComponent(query)}&per_page=${perPage}&page=${page}`;
+
+                const response = await fetch(url, {
+                    headers: getHeaders()
+                });
+
+                if (!response.ok) {
+                    if (response.status === 422) {
+                        const errorData = await response.json();
+                        const inaccessible = (errorData.errors || []).some(error =>
+                            typeof error.message === 'string' &&
+                            error.message.includes('cannot be searched')
+                        );
+                        if (inaccessible) {
+                            repo.searchUnavailableReason = 'Repository cannot be queried by unauthenticated GitHub API requests.';
+                            console.warn(`Skipping ${repo.fullName}: ${repo.searchUnavailableReason}`);
+                            return [];
+                        }
+                    }
+                    throw new Error(`GitHub API error: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                const items = data.items || [];
+
+                if (items.length === 0) break;
+
+                const detailedPRs = await Promise.all(
+                    items.map(item => fetchPRDetail(repo, item.number))
+                );
+                const validPRs = detailedPRs.filter(Boolean);
+
+                const prsWithCI = await Promise.all(
+                    validPRs.map(async pr => {
+                        const ciStatus = await fetchCIStatus(repo, pr);
+                        return { ...pr, ciStatus, trackerRole: '🔖 Label Match' };
+                    })
+                );
+
+                prs.push(...prsWithCI);
+
+                if (items.length < perPage) break;
+                page++;
             }
 
             return prs;
@@ -536,7 +614,7 @@
                     if (prs.length === 0) {
                         const emptyState = document.createElement('div');
                         emptyState.className = 'empty-state';
-                        emptyState.textContent = 'No PRs found for msyyc';
+                        emptyState.textContent = repo.searchUnavailableReason || 'No matching PRs found';
                         section.appendChild(emptyState);
                     } else {
                         const prList = document.createElement('div');
@@ -586,7 +664,7 @@
 
             const isAuthor = pr.user && pr.user.login === USERNAME;
             const isAssignee = pr.assignees && pr.assignees.some(assignee => assignee.login === USERNAME);
-            const role = isAuthor ? '👤 Author' : '📋 Assignee';
+            const role = pr.trackerRole || (isAuthor ? '👤 Author' : isAssignee ? '📋 Assignee' : '🔖 Query Match');
 
             const createdDate = new Date(pr.created_at).toLocaleDateString();
             const updatedDate = new Date(pr.updated_at).toLocaleDateString();
