@@ -81,18 +81,57 @@ async function loadTasks() {
 function renderTasks(containerId, tasks, showDelete) {
   const container = document.getElementById(containerId);
   container.innerHTML = tasks.map(t => `
-    <div class="task-card">
-      <div class="task-info">
-        <span class="task-type type-${t.type}">
-          ${t.type === 'pr_monitor' ? '● PR Monitor' : '⏰ Reminder'}
-        </span>
-        <div class="task-desc">${escHtml(t.description || t.link)}</div>
-        <div class="task-status">${getStatusText(t)}</div>
-        <a class="task-link" href="${escHtml(t.link)}" target="_blank">${truncate(t.link, 60)}</a>
+    <div class="task-group">
+      <div class="task-card" onclick="toggleDetail('${t.id}')">
+        <div class="task-info">
+          <span class="task-type type-${t.type}">
+            ${t.type === 'pr_monitor' ? '● PR Monitor' : '⏰ Reminder'}
+          </span>
+          <div class="task-desc">${escHtml(t.description || t.link)}</div>
+          <div class="task-status">${getStatusText(t)}</div>
+        </div>
+        ${showDelete ? `<button class="btn-danger" onclick="event.stopPropagation(); deleteTask('${t.id}')" title="Remove">✕</button>` : ''}
       </div>
-      ${showDelete ? `<button class="btn-danger" onclick="deleteTask('${t.id}')" title="Remove">✕</button>` : ''}
+      <div id="detail-${t.id}" class="task-detail hidden">
+        ${getDetailHtml(t)}
+      </div>
     </div>
   `).join('');
+}
+
+function toggleDetail(id) {
+  const el = document.getElementById('detail-' + id);
+  if (el) el.classList.toggle('hidden');
+}
+
+function getDetailHtml(t) {
+  const rows = [];
+  rows.push(`<tr><td>Link</td><td><a href="${escHtml(t.link)}" target="_blank" class="task-link">${escHtml(t.link)}</a></td></tr>`);
+  rows.push(`<tr><td>Status</td><td>${t.status}</td></tr>`);
+  rows.push(`<tr><td>Created</td><td>${formatTime(t.created_at)}</td></tr>`);
+  if (t.description) {
+    rows.push(`<tr><td>Description</td><td>${escHtml(t.description)}</td></tr>`);
+  }
+  if (t.type === 'pr_monitor' && t.pr_monitor) {
+    const pr = t.pr_monitor;
+    rows.push(`<tr><td>Repo</td><td>${escHtml(pr.repo)}</td></tr>`);
+    rows.push(`<tr><td>PR #</td><td>${pr.pr_number}</td></tr>`);
+    rows.push(`<tr><td>Poll interval</td><td>${pr.poll_interval_minutes} min</td></tr>`);
+    rows.push(`<tr><td>Timeout</td><td>${pr.timeout_minutes} min</td></tr>`);
+    if (pr.expire_at) rows.push(`<tr><td>Expires at</td><td>${formatTime(pr.expire_at)}</td></tr>`);
+    if (pr.last_status) rows.push(`<tr><td>Last CI status</td><td>${pr.last_status}</td></tr>`);
+    if (pr.last_checked) rows.push(`<tr><td>Last checked</td><td>${formatTime(pr.last_checked)}</td></tr>`);
+  }
+  if (t.type === 'reminder' && t.reminder) {
+    rows.push(`<tr><td>Delay</td><td>${t.reminder.delay_minutes} min</td></tr>`);
+    rows.push(`<tr><td>Fire at</td><td>${formatTime(t.reminder.fire_at)}</td></tr>`);
+  }
+  return `<table>${rows.join('')}</table>`;
+}
+
+function formatTime(iso) {
+  if (!iso) return 'N/A';
+  return new Date(iso).toLocaleString();
 }
 
 async function deleteTask(id) {
