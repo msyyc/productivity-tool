@@ -173,7 +173,7 @@ def clone_github_folder(url, output_dir=None):
 def main():
     parser = argparse.ArgumentParser(
         description="Clone a specific folder from a GitHub repository using git sparse-checkout. "
-                    "Only the target folder is kept, not its parent folders.",
+        "Only the target folder is kept, not its parent folders.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
@@ -183,7 +183,13 @@ examples:
 """,
     )
     parser.add_argument("url", type=str, help="GitHub folder URL to clone")
-    parser.add_argument("output_dir", type=str, nargs="?", default=None, help="Optional output directory (defaults to current directory)")
+    parser.add_argument(
+        "output_dir",
+        type=str,
+        nargs="?",
+        default=None,
+        help="Optional output directory (defaults to current directory)",
+    )
     args = parser.parse_args()
 
     url = args.url

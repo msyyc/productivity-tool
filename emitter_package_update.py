@@ -107,9 +107,7 @@ def check_prerequisites() -> None:
     # Check GitHub CLI
     result = run_command("gh --version", check=False)
     if result.returncode != 0:
-        raise RuntimeError(
-            "GitHub CLI (gh) is not installed. Please install it from https://cli.github.com/"
-        )
+        raise RuntimeError("GitHub CLI (gh) is not installed. Please install it from https://cli.github.com/")
     else:
         print("  GitHub CLI is available.")
 
@@ -188,10 +186,7 @@ def align_spec_repo_versions(repo_path: Path) -> None:
     # Collect spec versions for each package
     spec_versions = {}
     for pkg in packages_to_align:
-        version = (
-            spec_package.get("dependencies", {}).get(pkg)
-            or spec_package.get("devDependencies", {}).get(pkg)
-        )
+        version = spec_package.get("dependencies", {}).get(pkg) or spec_package.get("devDependencies", {}).get(pkg)
         if version:
             spec_versions[pkg] = version
             print(f"  Spec repo pins {pkg} at: {version}")

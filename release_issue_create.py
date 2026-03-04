@@ -87,9 +87,7 @@ def search_readme_python(package_name: str) -> str:
 
     items = json.loads(result.stdout.strip())
     if not items:
-        raise RuntimeError(
-            f"No readme.python.md found containing '{package_name}' in {REST_REPO}"
-        )
+        raise RuntimeError(f"No readme.python.md found containing '{package_name}' in {REST_REPO}")
 
     # Filter for resource-manager paths (management plane)
     matching_path = None
@@ -157,13 +155,19 @@ def create_issue(title: str, body: str) -> str:
     """Create a GitHub issue and return the issue URL."""
     print(f"\n[Step 4] Creating issue under {ISSUE_REPO}...")
     cmd = [
-        "gh", "issue", "create",
-        "--repo", ISSUE_REPO,
-        "--title", title,
-        "--body", body,
-        "--assignee", "ChenxiJiang333",
+        "gh",
+        "issue",
+        "create",
+        "--repo",
+        ISSUE_REPO,
+        "--title",
+        title,
+        "--body",
+        body,
+        "--assignee",
+        "ChenxiJiang333",
     ]
-    print(f"  Running: gh issue create --repo {ISSUE_REPO} --title \"{title}\" --body <body>")
+    print(f'  Running: gh issue create --repo {ISSUE_REPO} --title "{title}" --body <body>')
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.stdout:
         print(result.stdout.strip())
@@ -182,9 +186,7 @@ def add_labels(issue_url: str) -> None:
     # Extract issue number from URL
     issue_number = issue_url.rstrip("/").split("/")[-1]
     label_args = " ".join(f'--add-label "{l.strip()}"' for l in LABELS.split(","))
-    run_command(
-        f"gh issue edit {issue_number} --repo {ISSUE_REPO} {label_args}"
-    )
+    run_command(f"gh issue edit {issue_number} --repo {ISSUE_REPO} {label_args}")
     print("  Labels added.")
 
 
@@ -195,7 +197,7 @@ def delete_bot_comments(issue_url: str) -> None:
 
     # List comments on the issue
     result = run_command(
-        f"gh api repos/{ISSUE_REPO}/issues/{issue_number}/comments --jq '.[] | select(.user.login == \"github-actions[bot]\" or .user.login == \"github-actions\") | .id'",
+        f'gh api repos/{ISSUE_REPO}/issues/{issue_number}/comments --jq \'.[] | select(.user.login == "github-actions[bot]" or .user.login == "github-actions") | .id\'',
         check=False,
     )
 
@@ -220,9 +222,7 @@ def reopen_if_closed(issue_url: str) -> None:
     print("\n[Step 7] Checking if issue is still open...")
     issue_number = issue_url.rstrip("/").split("/")[-1]
 
-    result = run_command(
-        f"gh issue view {issue_number} --repo {ISSUE_REPO} --json state"
-    )
+    result = run_command(f"gh issue view {issue_number} --repo {ISSUE_REPO} --json state")
     state_info = json.loads(result.stdout.strip())
     state = state_info.get("state", "OPEN")
 

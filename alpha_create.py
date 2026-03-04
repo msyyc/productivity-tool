@@ -41,7 +41,7 @@ options:
 def main():
     parser = argparse.ArgumentParser(
         description="Create the alpha folder under packages/http-client-python in a TypeSpec repository. "
-                    "The folder contains client.tsp and tspconfig.yaml with predefined content.",
+        "The folder contains client.tsp and tspconfig.yaml with predefined content.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 examples:
