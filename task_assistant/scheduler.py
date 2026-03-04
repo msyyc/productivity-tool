@@ -36,11 +36,12 @@ class Scheduler:
             t.cancel()
 
     async def _run_pr_monitor(self, task: Task):
-        """Poll PR CI status until triggered or cancelled."""
+        """Poll PR CI status until triggered, timed out, or cancelled."""
         cfg = task.pr_monitor
         if not cfg:
             return
         interval = cfg.poll_interval_minutes * 60
+        expire_at = datetime.fromisoformat(cfg.expire_at) if cfg.expire_at else None
         try:
             while True:
                 loop = asyncio.get_event_loop()
@@ -61,6 +62,13 @@ class Scheduler:
                     if cfg.repo not in ("Azure/azure-rest-api-specs", "microsoft/typespec"):
                         self._trigger(task, "CI Passed", f"All CI checks passed on #{cfg.pr_number} in {cfg.repo}")
                         return
+
+                # Check timeout
+                if expire_at and datetime.now(timezone.utc) >= expire_at:
+                    status_msg = {"IN_PROGRESS": "still in progress", "ALL_COMPLETE": "all passed", "UNKNOWN": "unknown"}.get(ci, ci)
+                    self._trigger(task, "⏰ PR Monitor Timeout",
+                                  f"Time's up for #{cfg.pr_number} in {cfg.repo}\nCI status: {status_msg}")
+                    return
 
                 await asyncio.sleep(interval)
         except asyncio.CancelledError:

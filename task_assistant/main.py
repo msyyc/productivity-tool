@@ -51,7 +51,12 @@ async def create_task(req: CreateTaskRequest):
         m = re.match(r"https://github\.com/([^/]+/[^/]+)/pull/(\d+)", req.link.split("?")[0].split("#")[0])
         if not m:
             raise HTTPException(400, "Invalid GitHub PR URL")
-        task.pr_monitor = PRMonitorConfig(repo=m.group(1), pr_number=int(m.group(2)))
+        timeout = req.timeout_minutes or 30
+        expire_at = datetime.now(timezone.utc) + timedelta(minutes=timeout)
+        task.pr_monitor = PRMonitorConfig(
+            repo=m.group(1), pr_number=int(m.group(2)),
+            timeout_minutes=timeout, expire_at=expire_at.isoformat(),
+        )
 
     elif req.type == TaskType.REMINDER:
         if not req.delay_minutes or req.delay_minutes <= 0:

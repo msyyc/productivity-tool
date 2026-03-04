@@ -22,6 +22,8 @@ class PRMonitorConfig(BaseModel):
     pr_number: int
     watch_for: list[str] = Field(default_factory=lambda: ["ci_failure", "ci_success", "merged"])
     poll_interval_minutes: int = 5
+    timeout_minutes: int = 30
+    expire_at: Optional[str] = None  # ISO timestamp
     filter_checks: Optional[list[str]] = None
     last_status: Optional[str] = None
     last_checked: Optional[str] = None
@@ -48,3 +50,4 @@ class CreateTaskRequest(BaseModel):
     link: str
     description: str = ""
     delay_minutes: Optional[int] = None  # for reminders
+    timeout_minutes: Optional[int] = None  # for PR monitors (default 30)

@@ -8,12 +8,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('task-form');
   const typeSelect = document.getElementById('task-type');
   const delayGroup = document.getElementById('delay-group');
+  const timeoutGroup = document.getElementById('timeout-group');
 
   btnAdd.onclick = () => modal.classList.remove('hidden');
   btnCancel.onclick = () => modal.classList.add('hidden');
 
   typeSelect.onchange = () => {
     delayGroup.classList.toggle('hidden', typeSelect.value !== 'reminder');
+    timeoutGroup.classList.toggle('hidden', typeSelect.value !== 'pr_monitor');
   };
   typeSelect.dispatchEvent(new Event('change'));
 
@@ -26,6 +28,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     if (typeSelect.value === 'reminder') {
       body.delay_minutes = parseInt(document.getElementById('task-delay').value);
+    }
+    if (typeSelect.value === 'pr_monitor') {
+      body.timeout_minutes = parseInt(document.getElementById('task-timeout').value);
     }
     await fetch(API, {
       method: 'POST',
@@ -87,7 +92,12 @@ function getStatusText(t) {
     const pr = t.pr_monitor;
     const ci = pr.last_status || 'Waiting...';
     const ago = pr.last_checked ? timeAgo(pr.last_checked) : 'never';
-    return `CI: ${ci} (checked ${ago})`;
+    let timeout = '';
+    if (pr.expire_at) {
+      const diff = new Date(pr.expire_at) - Date.now();
+      timeout = diff > 0 ? ` · timeout in ${Math.ceil(diff / 60000)} min` : ' · timed out';
+    }
+    return `CI: ${ci} (checked ${ago})${timeout}`;
   }
   if (t.type === 'reminder' && t.reminder) {
     const fire = new Date(t.reminder.fire_at);

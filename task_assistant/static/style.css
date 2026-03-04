@@ -74,4 +74,5 @@ h2 { font-size: 1.1rem; margin-bottom: 12px; color: #aaa; }
 .empty-msg { color: #555; font-style: italic; font-size: 0.9rem; }
 section { margin-bottom: 24px; }
 #delay-group.hidden { display: none; }
+#timeout-group.hidden { display: none; }
 .hidden { display: none; }
