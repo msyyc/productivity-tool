@@ -193,8 +193,11 @@ async function deleteTask(id) {
 }
 
 async function clearHistory() {
+  const btn = document.querySelector('#history-section .btn-clear');
+  if (btn) { btn.textContent = 'Clearing...'; btn.disabled = true; }
   await fetch(`${API}/history`, { method: 'DELETE' });
   loadTasks();
+  if (btn) { btn.textContent = 'Clear'; btn.disabled = false; }
 }
 
 function getStatusText(t) {
