@@ -172,9 +172,9 @@ def update_dependencies(repo_path: Path) -> None:
     print("  emitter-package.json updated.")
 
 
-def align_openai_typespec_version(repo_path: Path) -> None:
-    """Align @azure-tools/openai-typespec with the version pinned in azure-rest-api-specs."""
-    print("\n[Step 5] Aligning @azure-tools/openai-typespec with spec repo...")
+def align_spec_repo_versions(repo_path: Path) -> None:
+    """Align @azure-tools/openai-typespec and @typespec/openapi3 with the versions pinned in azure-rest-api-specs."""
+    print("\n[Step 5] Aligning packages with spec repo versions...")
 
     spec_package_url = "https://raw.githubusercontent.com/Azure/azure-rest-api-specs/main/package.json"
     try:
@@ -183,36 +183,57 @@ def align_openai_typespec_version(repo_path: Path) -> None:
     except Exception as e:
         raise RuntimeError(f"Failed to fetch spec repo package.json: {e}")
 
-    spec_version = spec_package.get("devDependencies", {}).get("@azure-tools/openai-typespec")
-    if not spec_version:
-        print("  @azure-tools/openai-typespec not found in spec repo, skipping.")
-        return
+    packages_to_align = ["@azure-tools/openai-typespec", "@typespec/openapi3"]
 
-    print(f"  Spec repo pins @azure-tools/openai-typespec at: {spec_version}")
+    # Collect spec versions for each package
+    spec_versions = {}
+    for pkg in packages_to_align:
+        version = (
+            spec_package.get("dependencies", {}).get(pkg)
+            or spec_package.get("devDependencies", {}).get(pkg)
+        )
+        if version:
+            spec_versions[pkg] = version
+            print(f"  Spec repo pins {pkg} at: {version}")
+        else:
+            print(f"  {pkg} not found in spec repo, skipping.")
+
+    if not spec_versions:
+        print("  No packages to align.")
+        return
 
     emitter_package_path = repo_path / "eng" / "emitter-package.json"
     with open(emitter_package_path, "r") as f:
         emitter_package = json.load(f)
 
-    # Update in devDependencies if present, otherwise in dependencies
     updated = False
-    for section in ("devDependencies", "dependencies", "overrides"):
-        if section in emitter_package and "@azure-tools/openai-typespec" in emitter_package[section]:
-            old_version = emitter_package[section]["@azure-tools/openai-typespec"]
-            if old_version != spec_version:
-                emitter_package[section]["@azure-tools/openai-typespec"] = spec_version
-                print(f"  Updated {section}/@azure-tools/openai-typespec: {old_version} -> {spec_version}")
-                updated = True
-            else:
-                print(f"  {section}/@azure-tools/openai-typespec already at {spec_version}, no change needed.")
+    for pkg, spec_version in spec_versions.items():
+        found = False
+        for section in ("devDependencies", "dependencies", "overrides"):
+            if section in emitter_package and pkg in emitter_package[section]:
+                found = True
+                old_version = emitter_package[section][pkg]
+                if old_version != spec_version:
+                    emitter_package[section][pkg] = spec_version
+                    print(f"  Updated {section}/{pkg}: {old_version} -> {spec_version}")
+                    updated = True
+                else:
+                    print(f"  {section}/{pkg} already at {spec_version}, no change needed.")
+        if not found:
+            # Add to devDependencies if the package doesn't exist yet
+            if "devDependencies" not in emitter_package:
+                emitter_package["devDependencies"] = {}
+            emitter_package["devDependencies"][pkg] = spec_version
+            print(f"  Added {pkg}: {spec_version} to devDependencies")
+            updated = True
 
     if updated:
         with open(emitter_package_path, "w") as f:
             json.dump(emitter_package, f, indent=2)
             f.write("\n")
-        print("  emitter-package.json updated with aligned openai-typespec version.")
+        print("  emitter-package.json updated with aligned versions.")
     else:
-        print("  No openai-typespec version change required.")
+        print("  No version changes required.")
 
 
 def generate_lock_file(repo_path: Path) -> None:
@@ -310,8 +331,8 @@ examples:
         # Step 4: Update dependencies
         update_dependencies(repo_path)
 
-        # Step 5: Align openai-typespec with spec repo
-        align_openai_typespec_version(repo_path)
+        # Step 5: Align packages with spec repo
+        align_spec_repo_versions(repo_path)
 
         # Step 6: Generate lock file
         generate_lock_file(repo_path)
