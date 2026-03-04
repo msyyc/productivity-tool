@@ -70,7 +70,13 @@ class Scheduler:
                                   f"Time's up for #{cfg.pr_number} in {cfg.repo}\nCI status: {status_msg}")
                     return
 
-                await asyncio.sleep(interval)
+                # Sleep until next poll or expiry, whichever is sooner
+                sleep_secs = interval
+                if expire_at:
+                    remaining = (expire_at - datetime.now(timezone.utc)).total_seconds()
+                    if remaining > 0:
+                        sleep_secs = min(interval, remaining)
+                await asyncio.sleep(sleep_secs)
         except asyncio.CancelledError:
             pass
 
