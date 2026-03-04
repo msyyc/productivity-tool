@@ -35,35 +35,85 @@ def _popup_worker():
 
 
 def _show_popup_window(title: str, message: str, link: str, on_dismiss=None):
+    BG = "#1e1e2e"
+    FG = "#cdd6f4"
+    ACCENT = "#89b4fa"
+    BTN_BG = "#313244"
+    BTN_HOVER = "#45475a"
+    DISMISS_BG = "#585b70"
+
     root = tk.Tk()
     root.title(title)
-    root.geometry("450x180")
+    root.configure(bg=BG)
+    root.overrideredirect(True)  # Remove title bar for cleaner look
     root.attributes("-topmost", True)
-    root.resizable(False, False)
 
-    # Center on screen
+    W, H = 480, 200
     root.update_idletasks()
-    x = (root.winfo_screenwidth() - 450) // 2
-    y = (root.winfo_screenheight() - 180) // 2
-    root.geometry(f"450x180+{x}+{y}")
+    x = (root.winfo_screenwidth() - W) // 2
+    y = (root.winfo_screenheight() - H) // 2
+    root.geometry(f"{W}x{H}+{x}+{y}")
 
-    bold_font = tkfont.Font(family="Segoe UI", size=11, weight="bold")
-    normal_font = tkfont.Font(family="Segoe UI", size=10)
-    link_font = tkfont.Font(family="Segoe UI", size=10, underline=True)
+    title_font = tkfont.Font(family="Segoe UI", size=13, weight="bold")
+    msg_font = tkfont.Font(family="Segoe UI", size=10)
+    link_font = tkfont.Font(family="Segoe UI", size=9, underline=True)
+    btn_font = tkfont.Font(family="Segoe UI", size=9)
 
-    tk.Label(root, text=title, font=bold_font, pady=10).pack()
-    tk.Label(root, text=message, font=normal_font, wraplength=400).pack()
+    # Title bar area
+    title_frame = tk.Frame(root, bg=BG, pady=12)
+    title_frame.pack(fill="x", padx=20)
+    tk.Label(title_frame, text=title, font=title_font, bg=BG, fg=FG, anchor="w").pack(fill="x")
 
-    link_label = tk.Label(root, text="Open Link", font=link_font, fg="blue", cursor="hand2")
-    link_label.pack(pady=5)
-    link_label.bind("<Button-1>", lambda e: (webbrowser.open(link), root.destroy()))
+    # Message
+    if message:
+        tk.Label(root, text=message, font=msg_font, bg=BG, fg=FG,
+                 wraplength=440, anchor="w", justify="left").pack(fill="x", padx=20)
 
-    def dismiss():
+    # Clickable link (show actual URL, truncated)
+    display_link = link if len(link) <= 65 else link[:62] + "..."
+    link_label = tk.Label(root, text=display_link, font=link_font, bg=BG, fg=ACCENT,
+                          cursor="hand2", anchor="w")
+    link_label.pack(fill="x", padx=20, pady=(8, 0))
+    link_label.bind("<Button-1>", lambda e: (webbrowser.open(link), _close()))
+    link_label.bind("<Enter>", lambda e: link_label.configure(fg="#b4d0fb"))
+    link_label.bind("<Leave>", lambda e: link_label.configure(fg=ACCENT))
+
+    def _close():
         if on_dismiss:
             on_dismiss()
         root.destroy()
 
-    tk.Button(root, text="Dismiss", command=dismiss, width=10).pack(pady=5)
+    # Button row
+    btn_frame = tk.Frame(root, bg=BG)
+    btn_frame.pack(fill="x", padx=20, pady=(16, 14), side="bottom")
 
-    root.protocol("WM_DELETE_WINDOW", dismiss)
+    open_btn = tk.Button(btn_frame, text="Open Link", font=btn_font,
+                         bg=ACCENT, fg="#1e1e2e", activebackground="#b4d0fb",
+                         relief="flat", padx=16, pady=4, cursor="hand2",
+                         command=lambda: (webbrowser.open(link), _close()))
+    open_btn.pack(side="left")
+
+    dismiss_btn = tk.Button(btn_frame, text="Dismiss", font=btn_font,
+                            bg=DISMISS_BG, fg=FG, activebackground=BTN_HOVER,
+                            relief="flat", padx=16, pady=4, cursor="hand2",
+                            command=_close)
+    dismiss_btn.pack(side="left", padx=(10, 0))
+
+    root.protocol("WM_DELETE_WINDOW", _close)
+
+    # Allow dragging the borderless window
+    def _start_drag(event):
+        root._drag_x = event.x
+        root._drag_y = event.y
+
+    def _on_drag(event):
+        dx = event.x - root._drag_x
+        dy = event.y - root._drag_y
+        new_x = root.winfo_x() + dx
+        new_y = root.winfo_y() + dy
+        root.geometry(f"+{new_x}+{new_y}")
+
+    root.bind("<Button-1>", _start_drag)
+    root.bind("<B1-Motion>", _on_drag)
+
     root.mainloop()

@@ -77,7 +77,7 @@ class Scheduler:
             delay = (fire_at - now).total_seconds()
             if delay > 0:
                 await asyncio.sleep(delay)
-            self._trigger(task, "Reminder", task.description or "Time's up!")
+            self._trigger(task, "⏰ Reminder", task.description)
         except asyncio.CancelledError:
             pass
 
