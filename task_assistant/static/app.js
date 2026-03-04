@@ -76,6 +76,11 @@ async function loadTasks() {
 
   document.getElementById('no-active').classList.toggle('hidden', active.length > 0);
   document.getElementById('no-history').classList.toggle('hidden', history.length > 0);
+
+  // Update history arrow based on collapsed state
+  const historyBody = document.getElementById('history-body');
+  const arrow = document.getElementById('history-arrow');
+  if (arrow) arrow.textContent = historyBody.classList.contains('hidden') ? '▶' : '▼';
 }
 
 function renderTasks(containerId, tasks, showDelete) {
