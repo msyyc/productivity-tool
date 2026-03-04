@@ -22,8 +22,8 @@ def _open_dashboard(icon=None, item=None):
 
 def _quit(icon, item):
     icon.stop()
-    import os
-    os._exit(0)
+    import sys
+    sys.exit(0)
 
 
 def run_tray():

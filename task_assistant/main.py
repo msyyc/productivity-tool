@@ -48,7 +48,7 @@ async def create_task(req: CreateTaskRequest):
     task = Task(type=req.type, link=req.link, description=req.description)
 
     if req.type == TaskType.PR_MONITOR:
-        m = re.match(r"https://github\.com/([^/]+/[^/]+)/pull/(\d+)", req.link)
+        m = re.match(r"https://github\.com/([^/]+/[^/]+)/pull/(\d+)", req.link.split("?")[0].split("#")[0])
         if not m:
             raise HTTPException(400, "Invalid GitHub PR URL")
         task.pr_monitor = PRMonitorConfig(repo=m.group(1), pr_number=int(m.group(2)))

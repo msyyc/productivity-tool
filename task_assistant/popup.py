@@ -7,6 +7,7 @@ from tkinter import font as tkfont
 
 _popup_queue: queue.Queue = queue.Queue()
 _popup_thread: threading.Thread | None = None
+_popup_lock = threading.Lock()
 
 
 def show_popup(title: str, message: str, link: str, on_dismiss=None):
@@ -17,9 +18,10 @@ def show_popup(title: str, message: str, link: str, on_dismiss=None):
 
 def _ensure_popup_thread():
     global _popup_thread
-    if _popup_thread is None or not _popup_thread.is_alive():
-        _popup_thread = threading.Thread(target=_popup_worker, daemon=True)
-        _popup_thread.start()
+    with _popup_lock:
+        if _popup_thread is None or not _popup_thread.is_alive():
+            _popup_thread = threading.Thread(target=_popup_worker, daemon=True)
+            _popup_thread.start()
 
 
 def _popup_worker():

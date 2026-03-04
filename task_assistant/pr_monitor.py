@@ -6,7 +6,7 @@ from typing import Optional
 
 def parse_github_pr_url(url: str) -> Optional[tuple[str, int]]:
     """Extract (repo, pr_number) from a GitHub PR URL."""
-    m = re.match(r"https://github\.com/([^/]+/[^/]+)/pull/(\d+)", url)
+    m = re.match(r"https://github\.com/([^/]+/[^/]+)/pull/(\d+)", url.split("?")[0].split("#")[0])
     if m:
         return m.group(1), int(m.group(2))
     return None

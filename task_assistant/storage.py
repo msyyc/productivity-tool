@@ -21,8 +21,11 @@ class TaskStore:
             self._tasks = {t["id"]: Task(**t) for t in data}
 
     def _save(self):
-        with open(self._path, "w") as f:
+        tmp = self._path.with_suffix(".tmp")
+        with open(tmp, "w") as f:
             json.dump([t.model_dump() for t in self._tasks.values()], f, indent=2)
+            f.flush()
+        tmp.replace(self._path)
 
     def add(self, task: Task) -> Task:
         with self._lock:
