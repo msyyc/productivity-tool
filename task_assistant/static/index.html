@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task Assistant</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔧 Task Assistant</h1>
+      <button id="btn-add" class="btn-primary">+ Add Task</button>
+    </header>
+
+    <div id="modal" class="modal hidden">
+      <div class="modal-content">
+        <h2>Add Task</h2>
+        <form id="task-form">
+          <label>Type</label>
+          <select id="task-type">
+            <option value="pr_monitor">PR CI Monitor</option>
+            <option value="reminder">Reminder</option>
+          </select>
+
+          <label>Link</label>
+          <input type="url" id="task-link" placeholder="https://github.com/owner/repo/pull/123" required>
+
+          <label>Description (optional)</label>
+          <input type="text" id="task-desc" placeholder="Watch my SDK PR">
+
+          <div id="delay-group">
+            <label>Delay (minutes)</label>
+            <input type="number" id="task-delay" min="1" value="30">
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn-primary">Create</button>
+            <button type="button" id="btn-cancel" class="btn-secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <section id="active-section">
+      <h2>Active Tasks</h2>
+      <div id="active-tasks" class="task-list"></div>
+      <p id="no-active" class="empty-msg">No active tasks</p>
+    </section>
+
+    <section id="history-section">
+      <h2>History</h2>
+      <div id="history-tasks" class="task-list"></div>
+      <p id="no-history" class="empty-msg">No history</p>
+    </section>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
