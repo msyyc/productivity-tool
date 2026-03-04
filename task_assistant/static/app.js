@@ -61,6 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   loadTasks();
+  loadBreakingPRs();
   refreshInterval = setInterval(loadTasks, 10000);
 });
 
@@ -110,6 +111,34 @@ function toggleDetail(id, btn) {
   if (el) {
     el.classList.toggle('hidden');
     if (btn) btn.textContent = el.classList.contains('hidden') ? '▶' : '▼';
+  }
+}
+
+async function loadBreakingPRs() {
+  const container = document.getElementById('breaking-prs');
+  const noBreaking = document.getElementById('no-breaking');
+  try {
+    const res = await fetch('/api/breaking-prs');
+    const prs = await res.json();
+    if (prs.length === 0) {
+      container.innerHTML = '';
+      noBreaking.textContent = 'No breaking change PRs found';
+      noBreaking.classList.remove('hidden');
+      return;
+    }
+    noBreaking.classList.add('hidden');
+    container.innerHTML = prs.map(pr => `
+      <div class="task-card" onclick="window.open('${escHtml(pr.url)}', '_blank')">
+        <div class="task-info">
+          <span class="task-type type-breaking">⚠ ${escHtml(pr.repo.split('/')[1])}</span>
+          <div class="task-desc">#${pr.number} ${escHtml(pr.title)}</div>
+          <div class="task-status">by ${escHtml(pr.author)} · ${pr.created_at ? timeAgo(pr.created_at) : ''}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    noBreaking.textContent = 'Failed to load';
+    noBreaking.classList.remove('hidden');
   }
 }
 

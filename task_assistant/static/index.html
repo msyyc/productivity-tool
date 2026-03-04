@@ -55,6 +55,19 @@
       <p id="no-active" class="empty-msg">No active tasks</p>
     </section>
 
+    <section id="breaking-section">
+      <div class="section-header">
+        <h2 class="collapsible" onclick="const b=document.getElementById('breaking-body');b.classList.toggle('hidden');document.getElementById('breaking-arrow').textContent=b.classList.contains('hidden')?'▶':'▼'">
+          <span id="breaking-arrow">▼</span> Breaking Change PRs
+        </h2>
+        <button class="btn-clear" onclick="loadBreakingPRs()" title="Refresh">⟳</button>
+      </div>
+      <div id="breaking-body">
+        <div id="breaking-prs" class="task-list"></div>
+        <p id="no-breaking" class="empty-msg">Loading...</p>
+      </div>
+    </section>
+
     <section id="history-section">
       <div class="section-header">
         <h2 class="collapsible" onclick="const b=document.getElementById('history-body');b.classList.toggle('hidden');document.getElementById('history-arrow').textContent=b.classList.contains('hidden')?'▶':'▼'">
