@@ -87,7 +87,8 @@ function renderTasks(containerId, tasks, showDelete) {
   const container = document.getElementById(containerId);
   container.innerHTML = tasks.map(t => `
     <div class="task-group">
-      <div class="task-card" onclick="toggleDetail('${t.id}')">
+      <div class="task-card" onclick="window.open('${escHtml(t.link)}', '_blank')">
+        <button class="btn-expand" onclick="event.stopPropagation(); toggleDetail('${t.id}', this)" title="Details">▶</button>
         <div class="task-info">
           <span class="task-type type-${t.type}">
             ${t.type === 'pr_monitor' ? '● PR Monitor' : '⏰ Reminder'}
@@ -104,9 +105,12 @@ function renderTasks(containerId, tasks, showDelete) {
   `).join('');
 }
 
-function toggleDetail(id) {
+function toggleDetail(id, btn) {
   const el = document.getElementById('detail-' + id);
-  if (el) el.classList.toggle('hidden');
+  if (el) {
+    el.classList.toggle('hidden');
+    if (btn) btn.textContent = el.classList.contains('hidden') ? '▶' : '▼';
+  }
 }
 
 function getDetailHtml(t) {
