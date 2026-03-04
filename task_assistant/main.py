@@ -117,35 +117,40 @@ BREAKING_REPOS = [
 
 
 def _fetch_breaking_prs(repo: str) -> list[dict]:
-    """Fetch open breaking change PRs for a repo using gh CLI."""
-    label_filter = ",".join(BREAKING_LABELS)
-    try:
-        result = subprocess.run(
-            ["gh", "pr", "list", "--repo", repo, "--state", "open",
-             "--label", label_filter, "--label", "ARMSignedOff",
-             "--json", "number,title,url,labels,author,createdAt",
-             "--limit", "50"],
-            capture_output=True, text=True, timeout=30,
-        )
-        if result.returncode != 0:
-            return []
-        prs = json.loads(result.stdout) if result.stdout.strip() else []
-        # Filter out PRs that have any approved label
-        filtered = []
-        for pr in prs:
-            pr_labels = {l["name"] for l in pr.get("labels", [])}
-            if not pr_labels.intersection(APPROVED_LABELS):
-                filtered.append({
-                    "number": pr["number"],
-                    "title": pr["title"],
-                    "url": pr["url"],
-                    "author": pr.get("author", {}).get("login", ""),
-                    "created_at": pr.get("createdAt", ""),
-                    "repo": repo,
-                })
-        return filtered
-    except Exception:
-        return []
+    """Fetch open breaking change PRs for a repo using gh CLI.
+    Queries each breaking label separately since gh --label is AND not OR.
+    """
+    seen = set()
+    all_prs = []
+    for label in BREAKING_LABELS:
+        try:
+            result = subprocess.run(
+                ["gh", "pr", "list", "--repo", repo, "--state", "open",
+                 "--label", label, "--label", "ARMSignedOff",
+                 "--json", "number,title,url,labels,author,createdAt",
+                 "--limit", "50"],
+                capture_output=True, text=True, timeout=30,
+            )
+            if result.returncode != 0:
+                continue
+            prs = json.loads(result.stdout) if result.stdout.strip() else []
+            for pr in prs:
+                if pr["number"] in seen:
+                    continue
+                seen.add(pr["number"])
+                pr_labels = {l["name"] for l in pr.get("labels", [])}
+                if not pr_labels.intersection(APPROVED_LABELS):
+                    all_prs.append({
+                        "number": pr["number"],
+                        "title": pr["title"],
+                        "url": pr["url"],
+                        "author": pr.get("author", {}).get("login", ""),
+                        "created_at": pr.get("createdAt", ""),
+                        "repo": repo,
+                    })
+        except Exception:
+            continue
+    return all_prs
 
 
 @app.get("/api/breaking-prs")
