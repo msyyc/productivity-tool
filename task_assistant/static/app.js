@@ -117,6 +117,16 @@ function toggleDetail(id, btn) {
 async function loadBreakingPRs() {
   const container = document.getElementById('breaking-prs');
   const noBreaking = document.getElementById('no-breaking');
+  const refreshBtn = document.querySelector('#breaking-section .btn-clear');
+
+  // Show loading state
+  if (refreshBtn) {
+    refreshBtn.textContent = '⟳ Loading...';
+    refreshBtn.disabled = true;
+  }
+  noBreaking.textContent = 'Loading...';
+  noBreaking.classList.remove('hidden');
+
   try {
     const res = await fetch('/api/breaking-prs');
     const prs = await res.json();
@@ -139,6 +149,11 @@ async function loadBreakingPRs() {
   } catch (e) {
     noBreaking.textContent = 'Failed to load';
     noBreaking.classList.remove('hidden');
+  } finally {
+    if (refreshBtn) {
+      refreshBtn.textContent = '⟳';
+      refreshBtn.disabled = false;
+    }
   }
 }
 

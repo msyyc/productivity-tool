@@ -103,6 +103,7 @@ section { margin-bottom: 24px; }
   padding: 2px 10px; border-radius: 4px; cursor: pointer; font-size: 0.75rem;
 }
 .btn-clear:hover { color: #ccc; border-color: #888; }
+.btn-clear:disabled { color: #555; border-color: #444; cursor: wait; }
 #delay-group.hidden { display: none; }
 #timeout-group.hidden { display: none; }
 
