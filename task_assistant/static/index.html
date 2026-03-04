@@ -10,15 +10,17 @@
   <div class="container">
     <header>
       <h1>🔧 Task Assistant</h1>
-      <button id="btn-add" class="btn-primary">+ Add Task</button>
+      <div class="header-actions">
+        <button id="btn-add-pr" class="btn-pr">● PR Monitor</button>
+        <button id="btn-add-reminder" class="btn-reminder">⏰ Reminder</button>
+      </div>
     </header>
 
     <div id="modal" class="modal hidden">
       <div class="modal-content">
         <h2>Add Task</h2>
         <form id="task-form">
-          <label>Type</label>
-          <select id="task-type">
+          <select id="task-type" class="hidden">
             <option value="pr_monitor">PR CI Monitor</option>
             <option value="reminder">Reminder</option>
           </select>

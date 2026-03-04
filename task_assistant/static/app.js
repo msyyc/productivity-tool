@@ -3,14 +3,31 @@ let refreshInterval;
 
 document.addEventListener('DOMContentLoaded', () => {
   const modal = document.getElementById('modal');
-  const btnAdd = document.getElementById('btn-add');
+  const modalTitle = modal.querySelector('h2');
+  const btnAddPr = document.getElementById('btn-add-pr');
+  const btnAddReminder = document.getElementById('btn-add-reminder');
   const btnCancel = document.getElementById('btn-cancel');
   const form = document.getElementById('task-form');
   const typeSelect = document.getElementById('task-type');
   const delayGroup = document.getElementById('delay-group');
   const timeoutGroup = document.getElementById('timeout-group');
+  const linkInput = document.getElementById('task-link');
 
-  btnAdd.onclick = () => modal.classList.remove('hidden');
+  function openModal(type) {
+    typeSelect.value = type;
+    typeSelect.dispatchEvent(new Event('change'));
+    if (type === 'pr_monitor') {
+      modalTitle.textContent = '● Add PR Monitor';
+      linkInput.placeholder = 'https://github.com/owner/repo/pull/123';
+    } else {
+      modalTitle.textContent = '⏰ Add Reminder';
+      linkInput.placeholder = 'https://teams.microsoft.com/...';
+    }
+    modal.classList.remove('hidden');
+  }
+
+  btnAddPr.onclick = () => openModal('pr_monitor');
+  btnAddReminder.onclick = () => openModal('reminder');
   btnCancel.onclick = () => modal.classList.add('hidden');
 
   typeSelect.onchange = () => {

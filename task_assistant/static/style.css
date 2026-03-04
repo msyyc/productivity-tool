@@ -17,6 +17,19 @@ header {
   padding-bottom: 16px;
   border-bottom: 1px solid #333;
 }
+.header-actions { display: flex; gap: 8px; }
+
+.btn-pr {
+  background: #1565C0; color: white; border: none;
+  padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem;
+}
+.btn-pr:hover { background: #1976D2; }
+
+.btn-reminder {
+  background: #E65100; color: white; border: none;
+  padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem;
+}
+.btn-reminder:hover { background: #EF6C00; }
 
 h1 { font-size: 1.5rem; }
 h2 { font-size: 1.1rem; margin-bottom: 12px; color: #aaa; }
