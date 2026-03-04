@@ -56,9 +56,12 @@
     </section>
 
     <section id="history-section">
-      <h2 class="collapsible" onclick="const b=document.getElementById('history-body');b.classList.toggle('hidden');document.getElementById('history-arrow').textContent=b.classList.contains('hidden')?'▶':'▼'">
-        <span id="history-arrow">▶</span> History
-      </h2>
+      <div class="section-header">
+        <h2 class="collapsible" onclick="const b=document.getElementById('history-body');b.classList.toggle('hidden');document.getElementById('history-arrow').textContent=b.classList.contains('hidden')?'▶':'▼'">
+          <span id="history-arrow">▶</span> History
+        </h2>
+        <button class="btn-clear" onclick="clearHistory()">Clear</button>
+      </div>
       <div id="history-body" class="hidden">
         <div id="history-tasks" class="task-list"></div>
         <p id="no-history" class="empty-msg">No history</p>

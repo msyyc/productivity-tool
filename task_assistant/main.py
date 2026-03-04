@@ -69,6 +69,14 @@ async def create_task(req: CreateTaskRequest):
     return task.model_dump()
 
 
+@app.delete("/api/tasks/history")
+async def clear_history():
+    for task in store.get_all():
+        if task.status != TaskStatus.ACTIVE:
+            store.remove(task.id)
+    return {"ok": True}
+
+
 @app.delete("/api/tasks/{task_id}")
 async def delete_task(task_id: str):
     task = store.get(task_id)

@@ -144,6 +144,11 @@ async function deleteTask(id) {
   loadTasks();
 }
 
+async function clearHistory() {
+  await fetch(`${API}/history`, { method: 'DELETE' });
+  loadTasks();
+}
+
 function getStatusText(t) {
   if (t.status === 'triggered') return '✅ Triggered';
   if (t.status === 'dismissed') return '🚫 Dismissed';
