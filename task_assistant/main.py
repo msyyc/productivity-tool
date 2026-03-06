@@ -13,11 +13,12 @@ from fastapi.responses import FileResponse
 from task_assistant.models import (
     Task, TaskType, TaskStatus, PRMonitorConfig, ReminderConfig, CreateTaskRequest,
 )
-from task_assistant.storage import TaskStore
+from task_assistant.storage import TaskStore, AnnotationStore
 from task_assistant.scheduler import Scheduler
 from task_assistant.tray import start_tray_thread
 
 store = TaskStore()
+annotation_store = AnnotationStore()
 scheduler = Scheduler(store)
 
 
@@ -87,6 +88,16 @@ async def delete_task(task_id: str):
         raise HTTPException(404, "Task not found")
     scheduler.cancel(task_id)
     task.status = TaskStatus.DISMISSED
+    store.update(task)
+    return {"ok": True}
+
+
+@app.patch("/api/tasks/{task_id}/annotation")
+async def update_annotation(task_id: str, body: dict):
+    task = store.get(task_id)
+    if not task:
+        raise HTTPException(404, "Task not found")
+    task.annotation = body.get("annotation", "")
     store.update(task)
     return {"ok": True}
 
@@ -162,7 +173,18 @@ async def list_breaking_prs():
     all_prs = []
     for prs in results:
         all_prs.extend(prs)
+    annotations = annotation_store.get_all()
+    for pr in all_prs:
+        key = f"{pr['repo']}#{pr['number']}"
+        pr["annotation"] = annotations.get(key, "")
     return all_prs
+
+
+@app.patch("/api/breaking-prs/{repo_owner}/{repo_name}/{pr_number}/annotation")
+async def update_breaking_pr_annotation(repo_owner: str, repo_name: str, pr_number: int, body: dict):
+    key = f"{repo_owner}/{repo_name}#{pr_number}"
+    annotation_store.set(key, body.get("annotation", ""))
+    return {"ok": True}
 
 
 def main():

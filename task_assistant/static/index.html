@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Task Assistant</title>
-  <link rel="stylesheet" href="/static/style.css?v=2">
+  <link rel="stylesheet" href="/static/style.css?v=4">
 </head>
 <body>
   <div class="container">
@@ -16,36 +16,16 @@
       </div>
     </header>
 
-    <div id="modal" class="modal hidden">
-      <div class="modal-content">
-        <h2>Add Task</h2>
-        <form id="task-form">
-          <select id="task-type" class="hidden">
-            <option value="pr_monitor">PR CI Monitor</option>
-            <option value="reminder">Reminder</option>
-          </select>
-
-          <label>Link</label>
-          <input type="url" id="task-link" placeholder="https://github.com/owner/repo/pull/123" required>
-
-          <label>Description (optional)</label>
-          <input type="text" id="task-desc" placeholder="Watch my SDK PR">
-
-          <div id="delay-group">
-            <label>Delay (minutes)</label>
-            <input type="number" id="task-delay" min="1" value="30">
-          </div>
-
-          <div id="timeout-group">
-            <label>Timeout (minutes)</label>
-            <input type="number" id="task-timeout" min="1" value="30">
-          </div>
-
-          <div class="form-actions">
-            <button type="submit" class="btn-primary">Create</button>
-            <button type="button" id="btn-cancel" class="btn-secondary">Cancel</button>
-          </div>
-        </form>
+    <div id="quick-create" class="quick-create hidden">
+      <div class="qc-row">
+        <span id="qc-badge" class="task-type"></span>
+        <input type="text" id="qc-input" autocomplete="off">
+        <button type="button" id="qc-close" class="qc-close" title="Cancel">✕</button>
+      </div>
+      <div id="qc-time-row" class="qc-row hidden">
+        <span id="qc-time-label" class="qc-label">Minutes</span>
+        <input type="number" id="qc-time" min="1" value="30">
+        <span class="qc-hint">Enter to create</span>
       </div>
     </div>
 
@@ -82,6 +62,6 @@
     </section>
   </div>
 
-  <script src="/static/app.js?v=2"></script>
+  <script src="/static/app.js?v=4"></script>
 </body>
 </html>

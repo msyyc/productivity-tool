@@ -3,63 +3,81 @@ let refreshInterval;
 let _taskCache = {};
 
 document.addEventListener('DOMContentLoaded', () => {
-  const modal = document.getElementById('modal');
-  const modalTitle = modal.querySelector('h2');
-  const btnAddPr = document.getElementById('btn-add-pr');
-  const btnAddReminder = document.getElementById('btn-add-reminder');
-  const btnCancel = document.getElementById('btn-cancel');
-  const form = document.getElementById('task-form');
-  const typeSelect = document.getElementById('task-type');
-  const delayGroup = document.getElementById('delay-group');
-  const timeoutGroup = document.getElementById('timeout-group');
-  const linkInput = document.getElementById('task-link');
+  let qcType = null;
+  const qc = document.getElementById('quick-create');
+  const qcBadge = document.getElementById('qc-badge');
+  const qcInput = document.getElementById('qc-input');
+  const qcTimeRow = document.getElementById('qc-time-row');
+  const qcTimeLabel = document.getElementById('qc-time-label');
+  const qcTime = document.getElementById('qc-time');
 
-  function openModal(type) {
-    typeSelect.value = type;
-    typeSelect.dispatchEvent(new Event('change'));
+  function openQuickCreate(type) {
+    qcType = type;
     if (type === 'pr_monitor') {
-      modalTitle.textContent = '● Add PR Monitor';
-      linkInput.placeholder = 'https://github.com/owner/repo/pull/123';
+      qcBadge.textContent = '● PR Monitor';
+      qcBadge.className = 'task-type type-pr_monitor';
+      qcInput.placeholder = 'PR link [timeout minutes]';
+      qcTimeLabel.textContent = 'Timeout (min)';
     } else {
-      modalTitle.textContent = '⏰ Add Reminder';
-      linkInput.placeholder = 'https://teams.microsoft.com/...';
+      qcBadge.textContent = '⏰ Reminder';
+      qcBadge.className = 'task-type type-reminder';
+      qcInput.placeholder = 'Link [delay minutes]';
+      qcTimeLabel.textContent = 'Delay (min)';
     }
-    modal.classList.remove('hidden');
+    qcInput.value = '';
+    qcTimeRow.classList.add('hidden');
+    qc.classList.remove('hidden');
+    qcInput.focus();
   }
 
-  btnAddPr.onclick = () => openModal('pr_monitor');
-  btnAddReminder.onclick = () => openModal('reminder');
-  btnCancel.onclick = () => modal.classList.add('hidden');
+  document.getElementById('btn-add-pr').onclick = () => openQuickCreate('pr_monitor');
+  document.getElementById('btn-add-reminder').onclick = () => openQuickCreate('reminder');
+  document.getElementById('qc-close').onclick = () => qc.classList.add('hidden');
 
-  typeSelect.onchange = () => {
-    delayGroup.classList.toggle('hidden', typeSelect.value !== 'reminder');
-    timeoutGroup.classList.toggle('hidden', typeSelect.value !== 'pr_monitor');
-  };
-  typeSelect.dispatchEvent(new Event('change'));
+  qcInput.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const raw = qcInput.value.trim();
+      if (!raw) return;
+      const parts = raw.split(/\s+/);
+      const last = parts[parts.length - 1];
+      if (parts.length > 1 && /^\d+$/.test(last) && parseInt(last) > 0) {
+        await createQuickTask(parts.slice(0, -1).join(' '), parseInt(last));
+      } else {
+        qcTimeRow.classList.remove('hidden');
+        qcTime.value = '30';
+        qcTime.focus();
+        qcTime.select();
+      }
+    } else if (e.key === 'Escape') {
+      qc.classList.add('hidden');
+    }
+  });
 
-  form.onsubmit = async (e) => {
-    e.preventDefault();
-    const body = {
-      type: typeSelect.value,
-      link: document.getElementById('task-link').value,
-      description: document.getElementById('task-desc').value,
-    };
-    if (typeSelect.value === 'reminder') {
-      body.delay_minutes = parseInt(document.getElementById('task-delay').value);
+  qcTime.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const link = qcInput.value.trim();
+      const minutes = parseInt(qcTime.value);
+      if (link && minutes > 0) await createQuickTask(link, minutes);
+    } else if (e.key === 'Escape') {
+      qc.classList.add('hidden');
     }
-    if (typeSelect.value === 'pr_monitor') {
-      body.timeout_minutes = parseInt(document.getElementById('task-timeout').value);
-    }
+  });
+
+  async function createQuickTask(link, minutes) {
+    const body = { type: qcType, link };
+    if (qcType === 'reminder') body.delay_minutes = minutes;
+    if (qcType === 'pr_monitor') body.timeout_minutes = minutes;
     await fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    form.reset();
-    typeSelect.dispatchEvent(new Event('change'));
-    modal.classList.add('hidden');
+    qc.classList.add('hidden');
+    qcInput.value = '';
     loadTasks();
-  };
+  }
 
   loadTasks();
   loadBreakingPRs();
@@ -100,11 +118,22 @@ function renderTasks(containerId, tasks, showDelete) {
           </span>
           <div class="task-desc">${escHtml(t.description || t.link)}</div>
           <div class="task-status">${getStatusText(t)}</div>
+          ${t.annotation ? `<div class="task-annotation-preview">📝 ${escHtml(t.annotation)}</div>` : ''}
         </div>
-        ${showDelete ? `<button class="btn-danger" onclick="event.stopPropagation(); deleteTask('${t.id}')" title="Remove">✕</button>` : `<button class="btn-rerun" onclick="event.stopPropagation(); rerunTask('${t.id}')" title="Rerun">⟳</button>`}
+        <div class="task-actions">
+          <button class="btn-annotate${t.annotation ? ' has-annotation' : ''}" onclick="event.stopPropagation(); openAnnotation('${t.id}')" title="Annotation">📝</button>
+          ${showDelete ? `<button class="btn-danger" onclick="event.stopPropagation(); deleteTask('${t.id}')" title="Remove">✕</button>` : `<button class="btn-rerun" onclick="event.stopPropagation(); rerunTask('${t.id}')" title="Rerun">⟳</button>`}
+        </div>
       </div>
       <div id="detail-${t.id}" class="task-detail hidden">
         ${getDetailHtml(t)}
+      </div>
+      <div id="annotation-${t.id}" class="annotation-panel hidden">
+        <textarea class="annotation-input" id="annotation-input-${t.id}" placeholder="Add notes about this task...">${escHtml(t.annotation || '')}</textarea>
+        <div class="annotation-actions">
+          <button class="btn-annotation-save" onclick="saveAnnotation('${t.id}')">Save</button>
+          <button class="btn-annotation-cancel" onclick="closeAnnotation('${t.id}')">Cancel</button>
+        </div>
       </div>
     </div>
   `).join('');
@@ -141,15 +170,30 @@ async function loadBreakingPRs() {
       return;
     }
     noBreaking.classList.add('hidden');
-    container.innerHTML = prs.map(pr => `
-      <div class="task-card" onclick="window.open('${escHtml(pr.url)}', '_blank')">
-        <div class="task-info">
-          <span class="task-type type-breaking">⚠ ${escHtml(pr.repo.split('/')[1])}</span>
-          <div class="task-desc">#${pr.number} ${escHtml(pr.title)}</div>
-          <div class="task-status">by ${escHtml(pr.author)} · ${pr.created_at ? timeAgo(pr.created_at) : ''}</div>
+    container.innerHTML = prs.map(pr => {
+      const prKey = `${pr.repo}#${pr.number}`;
+      return `
+      <div class="task-group">
+        <div class="task-card" onclick="window.open('${escHtml(pr.url)}', '_blank')">
+          <div class="task-info">
+            <span class="task-type type-breaking">⚠ ${escHtml(pr.repo.split('/')[1])}</span>
+            <div class="task-desc">#${pr.number} ${escHtml(pr.title)}</div>
+            <div class="task-status">by ${escHtml(pr.author)} · ${pr.created_at ? timeAgo(pr.created_at) : ''}</div>
+            ${pr.annotation ? `<div class="task-annotation-preview">📝 ${escHtml(pr.annotation)}</div>` : ''}
+          </div>
+          <div class="task-actions">
+            <button class="btn-annotate${pr.annotation ? ' has-annotation' : ''}" onclick="event.stopPropagation(); openBPRAnnotation('${escHtml(prKey)}')" title="Annotation">📝</button>
+          </div>
         </div>
-      </div>
-    `).join('');
+        <div id="annotation-bpr-${escHtml(prKey)}" class="annotation-panel hidden">
+          <textarea class="annotation-input" id="annotation-input-bpr-${escHtml(prKey)}" placeholder="Add notes about this PR...">${escHtml(pr.annotation || '')}</textarea>
+          <div class="annotation-actions">
+            <button class="btn-annotation-save" onclick="saveBPRAnnotation('${escHtml(prKey)}')">Save</button>
+            <button class="btn-annotation-cancel" onclick="closeBPRAnnotation('${escHtml(prKey)}')">Cancel</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
   } catch (e) {
     noBreaking.textContent = 'Failed to load';
     noBreaking.classList.remove('hidden');
@@ -182,6 +226,9 @@ function getDetailHtml(t) {
   if (t.type === 'reminder' && t.reminder) {
     rows.push(`<tr><td>Delay</td><td>${t.reminder.delay_minutes} min</td></tr>`);
     rows.push(`<tr><td>Fire at</td><td>${formatTime(t.reminder.fire_at)}</td></tr>`);
+  }
+  if (t.annotation) {
+    rows.push(`<tr><td>Annotation</td><td style="white-space:pre-wrap">${escHtml(t.annotation)}</td></tr>`);
   }
   return `<table>${rows.join('')}</table>`;
 }
@@ -263,4 +310,66 @@ function escHtml(s) {
 
 function truncate(s, n) {
   return s.length > n ? s.slice(0, n) + '...' : s;
+}
+
+function openAnnotation(id) {
+  const panel = document.getElementById('annotation-' + id);
+  if (panel) {
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) {
+      const input = document.getElementById('annotation-input-' + id);
+      if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+    }
+  }
+}
+
+function closeAnnotation(id) {
+  const panel = document.getElementById('annotation-' + id);
+  if (panel) panel.classList.add('hidden');
+  const t = _taskCache[id];
+  if (t) {
+    const input = document.getElementById('annotation-input-' + id);
+    if (input) input.value = t.annotation || '';
+  }
+}
+
+async function saveAnnotation(id) {
+  const input = document.getElementById('annotation-input-' + id);
+  if (!input) return;
+  const annotation = input.value.trim();
+  await fetch(`${API}/${id}/annotation`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ annotation }),
+  });
+  loadTasks();
+}
+
+function openBPRAnnotation(key) {
+  const panel = document.getElementById('annotation-bpr-' + key);
+  if (panel) {
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) {
+      const input = document.getElementById('annotation-input-bpr-' + key);
+      if (input) { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+    }
+  }
+}
+
+function closeBPRAnnotation(key) {
+  const panel = document.getElementById('annotation-bpr-' + key);
+  if (panel) panel.classList.add('hidden');
+}
+
+async function saveBPRAnnotation(key) {
+  const input = document.getElementById('annotation-input-bpr-' + key);
+  if (!input) return;
+  const annotation = input.value.trim();
+  const [repo, number] = key.split('#');
+  await fetch(`/api/breaking-prs/${repo}/${number}/annotation`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ annotation }),
+  });
+  loadBreakingPRs();
 }

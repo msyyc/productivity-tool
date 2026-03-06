@@ -53,3 +53,42 @@ class TaskStore:
         with self._lock:
             self._tasks[task.id] = task
             self._save()
+
+
+ANNOTATION_FILE = Path(__file__).parent / "annotations.json"
+
+
+class AnnotationStore:
+    """Simple key-value store for annotations on non-task items (e.g. breaking PRs)."""
+
+    def __init__(self, path: Path = ANNOTATION_FILE):
+        self._path = path
+        self._lock = threading.Lock()
+        self._data: dict[str, str] = {}
+        self._load()
+
+    def _load(self):
+        if self._path.exists():
+            with open(self._path, "r") as f:
+                self._data = json.load(f)
+
+    def _save(self):
+        tmp = self._path.with_suffix(".tmp")
+        with open(tmp, "w") as f:
+            json.dump(self._data, f, indent=2)
+            f.flush()
+        tmp.replace(self._path)
+
+    def get(self, key: str) -> str:
+        return self._data.get(key, "")
+
+    def get_all(self) -> dict[str, str]:
+        return dict(self._data)
+
+    def set(self, key: str, value: str):
+        with self._lock:
+            if value:
+                self._data[key] = value
+            else:
+                self._data.pop(key, None)
+            self._save()

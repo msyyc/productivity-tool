@@ -57,24 +57,32 @@ h2 { font-size: 1.1rem; margin-bottom: 12px; color: #aaa; }
 }
 .btn-rerun:hover { color: #66BB6A; }
 
-.modal {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.6);
-  display: flex; align-items: center; justify-content: center; z-index: 100;
+.quick-create {
+  background: #2a2a3e; border-radius: 8px; padding: 12px 16px;
+  margin-bottom: 16px; border: 1px solid #444;
 }
-.modal.hidden { display: none; }
-.modal-content {
-  background: #2a2a3e; padding: 24px; border-radius: 10px; width: 400px;
+.quick-create.hidden { display: none; }
+.qc-row {
+  display: flex; align-items: center; gap: 10px;
 }
-.modal-content label {
-  display: block; margin-top: 12px; margin-bottom: 4px;
-  font-size: 0.85rem; color: #aaa;
+.qc-row + .qc-row { margin-top: 10px; }
+.qc-row input[type="text"] {
+  flex: 1; padding: 8px 12px; border: 1px solid #444; border-radius: 6px;
+  background: #1a1a2e; color: #e0e0e0; font-size: 0.95rem; outline: none;
 }
-.modal-content input, .modal-content select {
-  width: 100%; padding: 8px; border: 1px solid #444; border-radius: 4px;
-  background: #1a1a2e; color: #e0e0e0; font-size: 0.9rem;
+.qc-row input[type="text"]:focus { border-color: #89b4fa; }
+.qc-row input[type="number"] {
+  width: 100px; padding: 8px 12px; border: 1px solid #444; border-radius: 6px;
+  background: #1a1a2e; color: #e0e0e0; font-size: 0.95rem; outline: none;
 }
-.form-actions { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; }
+.qc-row input[type="number"]:focus { border-color: #89b4fa; }
+.qc-close {
+  background: none; border: none; color: #888; cursor: pointer;
+  font-size: 1.1rem; padding: 4px 8px;
+}
+.qc-close:hover { color: #ccc; }
+.qc-label { color: #aaa; font-size: 0.85rem; white-space: nowrap; }
+.qc-hint { color: #555; font-size: 0.8rem; white-space: nowrap; font-style: italic; }
 
 .task-group { margin-bottom: 8px; }
 .task-card {
@@ -97,6 +105,11 @@ h2 { font-size: 1.1rem; margin-bottom: 12px; color: #aaa; }
 .type-breaking { background: #C62828; }
 .task-desc { font-size: 0.95rem; }
 .task-status { font-size: 0.8rem; color: #888; margin-top: 4px; }
+.task-annotation-preview {
+  font-size: 0.82rem; color: #a0a8c0; margin-top: 4px;
+  white-space: pre-wrap; word-break: break-word;
+  border-left: 2px solid #89b4fa; padding-left: 8px;
+}
 .task-link { color: #64B5F6; text-decoration: none; font-size: 0.8rem; }
 .task-link:hover { text-decoration: underline; }
 .empty-msg { color: #555; font-style: italic; font-size: 0.9rem; }
@@ -110,8 +123,7 @@ section { margin-bottom: 24px; }
 }
 .btn-clear:hover { color: #ccc; border-color: #888; }
 .btn-clear:disabled { color: #555; border-color: #444; cursor: wait; }
-#delay-group.hidden { display: none; }
-#timeout-group.hidden { display: none; }
+#qc-time-row.hidden { display: none; }
 
 .task-detail {
   background: #232336; border-radius: 0 0 8px 8px; padding: 10px 16px;
@@ -128,3 +140,36 @@ section { margin-bottom: 24px; }
 .task-detail .task-link { color: #64B5F6; text-decoration: none; word-break: break-all; }
 .task-detail .task-link:hover { text-decoration: underline; }
 .hidden { display: none; }
+
+.task-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+
+.btn-annotate {
+  background: none; border: none; cursor: pointer;
+  font-size: 1rem; padding: 4px 6px; opacity: 0.5; transition: opacity 0.15s;
+}
+.btn-annotate:hover { opacity: 1; }
+.btn-annotate.has-annotation { opacity: 1; }
+
+.annotation-panel {
+  background: #232336; border-radius: 0 0 8px 8px; padding: 10px 16px;
+  border-top: 1px solid #333;
+}
+.annotation-panel.hidden { display: none; }
+.annotation-input {
+  width: 100%; min-height: 60px; padding: 8px 10px; border: 1px solid #444;
+  border-radius: 6px; background: #1a1a2e; color: #e0e0e0; font-size: 0.85rem;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  resize: vertical; outline: none;
+}
+.annotation-input:focus { border-color: #89b4fa; }
+.annotation-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; }
+.btn-annotation-save {
+  background: #4CAF50; color: white; border: none; padding: 4px 14px;
+  border-radius: 4px; cursor: pointer; font-size: 0.8rem;
+}
+.btn-annotation-save:hover { background: #45a049; }
+.btn-annotation-cancel {
+  background: #555; color: #ccc; border: none; padding: 4px 14px;
+  border-radius: 4px; cursor: pointer; font-size: 0.8rem;
+}
+.btn-annotation-cancel:hover { background: #666; }

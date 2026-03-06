@@ -39,6 +39,7 @@ class Task(BaseModel):
     type: TaskType
     description: str = ""
     link: str
+    annotation: str = ""
     status: TaskStatus = TaskStatus.ACTIVE
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     pr_monitor: Optional[PRMonitorConfig] = None
