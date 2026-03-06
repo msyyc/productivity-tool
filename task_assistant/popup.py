@@ -31,7 +31,9 @@ def _popup_worker():
             title, message, link, on_dismiss = _popup_queue.get(timeout=5)
             _show_popup_window(title, message, link, on_dismiss)
         except queue.Empty:
-            break  # Exit thread when queue is empty for 5 seconds
+            break
+        except RuntimeError:
+            break
 
 
 def _show_popup_window(title: str, message: str, link: str, on_dismiss=None):
@@ -110,7 +112,10 @@ def _show_popup_window(title: str, message: str, link: str, on_dismiss=None):
     def _close():
         if on_dismiss:
             on_dismiss()
-        root.destroy()
+        try:
+            root.after(0, root.destroy)
+        except Exception:
+            pass
 
     # Rounded buttons via Canvas
     btn_y = H - 62
@@ -176,7 +181,10 @@ def _show_popup_window(title: str, message: str, link: str, on_dismiss=None):
     # Slide-in + fade animation
     _animate_in(root, target_x, target_y, screen_h)
 
-    root.mainloop()
+    try:
+        root.mainloop()
+    except RuntimeError:
+        pass
 
 
 def _rounded_rect(canvas, x1, y1, x2, y2, r, **kwargs):
