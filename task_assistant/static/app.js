@@ -1,5 +1,6 @@
 const API = '/api/tasks';
 let refreshInterval;
+let _taskCache = {};
 
 document.addEventListener('DOMContentLoaded', () => {
   const modal = document.getElementById('modal');
@@ -72,6 +73,9 @@ async function loadTasks() {
   const active = tasks.filter(t => t.status === 'active');
   const history = tasks.filter(t => t.status !== 'active');
 
+  _taskCache = {};
+  tasks.forEach(t => _taskCache[t.id] = t);
+
   renderTasks('active-tasks', active, true);
   renderTasks('history-tasks', history, false);
 
@@ -97,7 +101,7 @@ function renderTasks(containerId, tasks, showDelete) {
           <div class="task-desc">${escHtml(t.description || t.link)}</div>
           <div class="task-status">${getStatusText(t)}</div>
         </div>
-        ${showDelete ? `<button class="btn-danger" onclick="event.stopPropagation(); deleteTask('${t.id}')" title="Remove">✕</button>` : ''}
+        ${showDelete ? `<button class="btn-danger" onclick="event.stopPropagation(); deleteTask('${t.id}')" title="Remove">✕</button>` : `<button class="btn-rerun" onclick="event.stopPropagation(); rerunTask('${t.id}')" title="Rerun">⟳</button>`}
       </div>
       <div id="detail-${t.id}" class="task-detail hidden">
         ${getDetailHtml(t)}
@@ -189,6 +193,24 @@ function formatTime(iso) {
 
 async function deleteTask(id) {
   await fetch(`${API}/${id}`, { method: 'DELETE' });
+  loadTasks();
+}
+
+async function rerunTask(id) {
+  const t = _taskCache[id];
+  if (!t) return;
+  const body = { type: t.type, link: t.link, description: t.description };
+  if (t.type === 'reminder' && t.reminder) {
+    body.delay_minutes = t.reminder.delay_minutes;
+  }
+  if (t.type === 'pr_monitor' && t.pr_monitor) {
+    body.timeout_minutes = t.pr_monitor.timeout_minutes;
+  }
+  await fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
   loadTasks();
 }
 
