@@ -52,22 +52,23 @@ class Scheduler:
                 cfg.last_checked = datetime.now(timezone.utc).isoformat()
                 self.store.update(task)
 
+                pr_title = task.description or f"#{cfg.pr_number}"
                 if state == "MERGED":
-                    self._trigger(task, "PR Merged", f"#{cfg.pr_number} in {cfg.repo} has been merged!")
+                    self._trigger(task, "PR Merged", f"{pr_title}\n#{cfg.pr_number} in {cfg.repo} has been merged!")
                     return
                 if ci == "FAILURE":
-                    self._trigger(task, "CI Failed", f"CI checks failed on #{cfg.pr_number} in {cfg.repo}")
+                    self._trigger(task, "CI Failed", f"{pr_title}\nCI checks failed on #{cfg.pr_number} in {cfg.repo}")
                     return
                 if ci == "ALL_COMPLETE":
                     if cfg.repo not in ("Azure/azure-rest-api-specs", "microsoft/typespec"):
-                        self._trigger(task, "CI Passed", f"All CI checks passed on #{cfg.pr_number} in {cfg.repo}")
+                        self._trigger(task, "CI Passed", f"{pr_title}\nAll CI checks passed on #{cfg.pr_number} in {cfg.repo}")
                         return
 
                 # Check timeout
                 if expire_at and datetime.now(timezone.utc) >= expire_at:
                     status_msg = {"IN_PROGRESS": "still in progress", "ALL_COMPLETE": "all passed", "UNKNOWN": "unknown"}.get(ci, ci)
                     self._trigger(task, "⏰ PR Monitor Timeout",
-                                  f"Time's up for #{cfg.pr_number} in {cfg.repo}\nCI status: {status_msg}")
+                                  f"{pr_title}\nTime's up for #{cfg.pr_number} in {cfg.repo}\nCI status: {status_msg}")
                     return
 
                 # Sleep until next poll or expiry, whichever is sooner

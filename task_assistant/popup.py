@@ -44,10 +44,7 @@ def _show_popup_window(title: str, message: str, link: str, on_dismiss=None):
     SUBTEXT = "#a6adc8"
     ACCENT = "#89b4fa"
     ACCENT_HOVER = "#b4d0fb"
-    GREEN = "#a6e3a1"
-    GREEN_HOVER = "#c6f0c0"
     RED = "#f38ba8"
-    RED_HOVER = "#f5a3b8"
 
     root = tk.Tk()
     root.title(title)
@@ -56,7 +53,7 @@ def _show_popup_window(title: str, message: str, link: str, on_dismiss=None):
     root.attributes("-topmost", True)
     root.attributes("-alpha", 0.0)
 
-    W, H = 520, 240
+    W, H = 560, 280
     root.update_idletasks()
     screen_w = root.winfo_screenwidth()
     screen_h = root.winfo_screenheight()
@@ -64,77 +61,93 @@ def _show_popup_window(title: str, message: str, link: str, on_dismiss=None):
     target_y = screen_h - H - 60
     root.geometry(f"{W}x{H}+{target_x}+{screen_h}")
 
-    # Rounded border via Canvas
-    RADIUS = 16
+    # Rounded window border
+    RADIUS = 18
     canvas = tk.Canvas(root, width=W, height=H, bg=BG, highlightthickness=0)
     canvas.place(x=0, y=0)
     _rounded_rect(canvas, 0, 0, W, H, RADIUS, fill=BG, outline=SURFACE1, width=2)
 
     # Accent stripe at top
-    canvas.create_rectangle(RADIUS, 0, W - RADIUS, 4, fill=ACCENT, outline="")
-    canvas.create_rectangle(2, 4, W - 2, 4, fill=ACCENT, outline="")
+    canvas.create_rectangle(RADIUS, 0, W - RADIUS, 5, fill=ACCENT, outline="")
+    canvas.create_rectangle(2, 5, W - 2, 5, fill=ACCENT, outline="")
+
+    # Fonts - larger sizes
+    icon_font = tkfont.Font(family="Segoe UI Emoji", size=26)
+    title_font = tkfont.Font(family="Segoe UI", size=16, weight="bold")
+    msg_font = tkfont.Font(family="Segoe UI", size=12)
+    link_font = tkfont.Font(family="Segoe UI", size=10, underline=True)
+    btn_font = tkfont.Font(family="Segoe UI Semibold", size=11)
+    close_font = tkfont.Font(family="Segoe UI", size=13)
 
     # Icon + title row
     icon = "🔔" if "Reminder" in title else "●" if "PR" in title else "📋"
-    icon_font = tkfont.Font(family="Segoe UI Emoji", size=22)
-    title_font = tkfont.Font(family="Segoe UI", size=14, weight="bold")
-    msg_font = tkfont.Font(family="Segoe UI", size=10)
-    link_font = tkfont.Font(family="Segoe UI", size=9, underline=True)
-    btn_font = tkfont.Font(family="Segoe UI Semibold", size=10)
-    close_font = tkfont.Font(family="Segoe UI", size=11)
-
     header_frame = tk.Frame(root, bg=BG)
-    header_frame.place(x=20, y=16, width=W - 40, height=40)
+    header_frame.place(x=24, y=18, width=W - 48, height=44)
 
-    tk.Label(header_frame, text=icon, font=icon_font, bg=BG, fg=ACCENT).pack(side="left", padx=(0, 10))
+    tk.Label(header_frame, text=icon, font=icon_font, bg=BG, fg=ACCENT).pack(side="left", padx=(0, 12))
     tk.Label(header_frame, text=title, font=title_font, bg=BG, fg=FG, anchor="w").pack(side="left", fill="x", expand=True)
 
-    # Close (X) button in top-right
     close_btn = tk.Label(header_frame, text="✕", font=close_font, bg=BG, fg=OVERLAY, cursor="hand2")
     close_btn.pack(side="right")
 
-    # Message
-    msg_y = 62
+    # Message (PR title or description)
+    content_y = 70
     if message:
-        msg_label = tk.Label(root, text=message, font=msg_font, bg=BG, fg=SUBTEXT,
-                             wraplength=W - 48, anchor="w", justify="left")
-        msg_label.place(x=24, y=msg_y)
-        msg_y += 30
+        msg_label = tk.Label(root, text=message, font=msg_font, bg=BG, fg=FG,
+                             wraplength=W - 56, anchor="w", justify="left")
+        msg_label.place(x=28, y=content_y)
+        content_y += 36
 
-    # Divider line
-    sep = tk.Frame(root, bg=SURFACE1, height=1)
-    sep.place(x=24, y=msg_y + 4, width=W - 48)
+    # Divider
+    tk.Frame(root, bg=SURFACE1, height=1).place(x=28, y=content_y + 2, width=W - 56)
 
     # Link row
-    display_link = link if len(link) <= 70 else link[:67] + "…"
+    display_link = link if len(link) <= 65 else link[:62] + "…"
     link_label = tk.Label(root, text=display_link, font=link_font, bg=BG, fg=ACCENT,
                           cursor="hand2", anchor="w")
-    link_label.place(x=24, y=msg_y + 14)
-
-    # Button row at bottom
-    btn_y = H - 56
-    btn_frame = tk.Frame(root, bg=BG)
-    btn_frame.place(x=24, y=btn_y, width=W - 48, height=40)
+    link_label.place(x=28, y=content_y + 14)
 
     def _close():
         if on_dismiss:
             on_dismiss()
         root.destroy()
 
-    def _make_btn(parent, text, bg_color, fg_color, hover_bg, hover_fg, command):
-        btn = tk.Label(parent, text=text, font=btn_font, bg=bg_color, fg=fg_color,
-                       cursor="hand2", padx=20, pady=6)
-        btn.bind("<Button-1>", lambda e: command())
-        btn.bind("<Enter>", lambda e: btn.configure(bg=hover_bg, fg=hover_fg))
-        btn.bind("<Leave>", lambda e: btn.configure(bg=bg_color, fg=fg_color))
-        return btn
+    # Rounded buttons via Canvas
+    btn_y = H - 62
+    btn_canvas = tk.Canvas(root, width=W - 56, height=42, bg=BG, highlightthickness=0)
+    btn_canvas.place(x=28, y=btn_y)
 
-    open_btn = _make_btn(btn_frame, "  Open Link  ", ACCENT, BG, ACCENT_HOVER, BG,
-                         lambda: (webbrowser.open(link), _close()))
-    open_btn.pack(side="left")
+    open_btn_id = _rounded_rect(btn_canvas, 0, 0, 140, 40, 10, fill=ACCENT, outline="")
+    open_txt_id = btn_canvas.create_text(70, 20, text="Open Link", font=btn_font, fill=BG)
 
-    dismiss_btn = _make_btn(btn_frame, "  Dismiss  ", SURFACE0, SUBTEXT, SURFACE1, FG, _close)
-    dismiss_btn.pack(side="left", padx=(12, 0))
+    dismiss_btn_id = _rounded_rect(btn_canvas, 154, 0, 280, 40, 10, fill=SURFACE0, outline="")
+    dismiss_txt_id = btn_canvas.create_text(217, 20, text="Dismiss", font=btn_font, fill=SUBTEXT)
+
+    def _on_open_enter(e):
+        btn_canvas.itemconfig(open_btn_id, fill=ACCENT_HOVER)
+    def _on_open_leave(e):
+        btn_canvas.itemconfig(open_btn_id, fill=ACCENT)
+    def _on_dismiss_enter(e):
+        btn_canvas.itemconfig(dismiss_btn_id, fill=SURFACE1)
+        btn_canvas.itemconfig(dismiss_txt_id, fill=FG)
+    def _on_dismiss_leave(e):
+        btn_canvas.itemconfig(dismiss_btn_id, fill=SURFACE0)
+        btn_canvas.itemconfig(dismiss_txt_id, fill=SUBTEXT)
+
+    def _btn_click(e):
+        x = e.x
+        if x <= 140:
+            webbrowser.open(link)
+            _close()
+        elif 154 <= x <= 280:
+            _close()
+
+    btn_canvas.bind("<Button-1>", _btn_click)
+    btn_canvas.bind("<Motion>", lambda e: (
+        (_on_open_enter(e) if e.x <= 140 else _on_open_leave(e)),
+        (_on_dismiss_enter(e) if 154 <= e.x <= 280 else _on_dismiss_leave(e)),
+    ))
+    btn_canvas.bind("<Leave>", lambda e: (_on_open_leave(e), _on_dismiss_leave(e)))
 
     # Wire up close button and link
     close_btn.bind("<Button-1>", lambda e: _close())
