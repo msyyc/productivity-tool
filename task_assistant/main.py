@@ -51,14 +51,21 @@ async def list_tasks():
 async def create_task(req: CreateTaskRequest):
     task = Task(type=req.type, link=req.link, description=req.description)
 
+    # Auto-fill description with PR title if link is a GitHub PR URL
+    pr_match = re.match(r"https://github\.com/([^/]+/[^/]+)/pull/(\d+)", req.link.split("?")[0].split("#")[0])
+    if pr_match and not req.description:
+        loop = asyncio.get_event_loop()
+        title = await loop.run_in_executor(None, _fetch_pr_title, pr_match.group(1), int(pr_match.group(2)))
+        if title:
+            task.description = title
+
     if req.type == TaskType.PR_MONITOR:
-        m = re.match(r"https://github\.com/([^/]+/[^/]+)/pull/(\d+)", req.link.split("?")[0].split("#")[0])
-        if not m:
+        if not pr_match:
             raise HTTPException(400, "Invalid GitHub PR URL")
         timeout = req.timeout_minutes or 30
         expire_at = datetime.now(timezone.utc) + timedelta(minutes=timeout)
         task.pr_monitor = PRMonitorConfig(
-            repo=m.group(1), pr_number=int(m.group(2)),
+            repo=pr_match.group(1), pr_number=int(pr_match.group(2)),
             timeout_minutes=timeout, expire_at=expire_at.isoformat(),
         )
 
@@ -125,6 +132,20 @@ BREAKING_REPOS = [
     "Azure/azure-rest-api-specs",
     "Azure/azure-rest-api-specs-pr",
 ]
+
+
+def _fetch_pr_title(repo: str, pr_number: int) -> str:
+    """Fetch a PR title using gh CLI. Returns empty string on failure."""
+    try:
+        result = subprocess.run(
+            ["gh", "pr", "view", str(pr_number), "--repo", repo, "--json", "title", "--jq", ".title"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return ""
 
 
 def _fetch_breaking_prs(repo: str) -> list[dict]:
