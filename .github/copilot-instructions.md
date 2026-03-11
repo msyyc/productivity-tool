@@ -20,4 +20,5 @@
 - **bump typespec-python**: run python script `typespec_python_release.py` under local autorest repo to update the version of typespec-python in autorest repo, then create a PR to merge the change.
 - **bump sdk repo**: run python script `emitter_package_update.py <sdk-repo-path>` to update emitter-package.json in local sdk repo to use the latest version of python generator tool, then create a PR to merge the change.
 - **create release issue**: run `python release_issue_create.py --sdk-name <package-name> --tag <readme-tag>` to create a release request issue under Azure/sdk-release-request.
+- **update sdk version**: run `python update_sdk_version.py <pr-link> <sdk-repo-path> <version>` to update the version of an SDK package. It checks out the PR branch, updates `_version.py`, `CHANGELOG.md`, and `pyproject.toml`, then commits and pushes. Use a version containing `b` (e.g. `1.0.0b1`) for beta, otherwise it's treated as stable.
 - **clean repo**: run `git reset HEAD && git checkout . && git clean -fd && git checkout origin/main && git pull origin main` under the local repo to clean all the local changes and sync with remote main branch.

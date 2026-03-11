@@ -129,5 +129,24 @@ python release_issue_create.py --sdk-name managementgroups --tag package-2021-04
 ### Requirements
 - GitHub CLI (`gh`) authenticated with access to Azure repos
 
+## update_sdk_version.py
+A Python script to update the version of an Azure SDK for Python package based on a PR. It checks out the PR branch (including forks), updates `_version.py`, `CHANGELOG.md`, and `pyproject.toml` (including `is_stable` and `Development Status` classifier), then commits and pushes to the PR branch.
+
+### Usage
+```bash
+# Basic usage
+python update_sdk_version.py <pr-link> <local-sdk-repo-path> <version>
+
+# Example: stable release
+python update_sdk_version.py https://github.com/Azure/azure-sdk-for-python/pull/45605 C:\dev\azure-sdk-for-python 1.2.0
+
+# Example: beta release
+python update_sdk_version.py https://github.com/Azure/azure-sdk-for-python/pull/45605 C:\dev\azure-sdk-for-python 1.0.0b1
+```
+
+### Requirements
+- GitHub CLI (`gh`) authenticated with access to the SDK repo
+- Git configured with repository access
+
 ## pr-tracker.html
 A single-page HTML dashboard that tracks open GitHub PRs authored by or assigned to `msyyc` across the `microsoft/typespec`, `Azure/typespec-azure`, and `Azure/autorest.python` repositories. It also includes PRs labeled `emitter:client:python` in the typespec repo. The page displays PR stats, CI status, labels, and supports a hardcoded ignore list to hide specific PR numbers. Just open the file in a browser — no build step required.
