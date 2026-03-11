@@ -165,16 +165,16 @@ def update_changelog(changelog_path: Path, new_version: str) -> None:
 
     content = changelog_path.read_text(encoding="utf-8")
 
-    # Match the first ## version header (e.g., "## 1.0.0b1 (Unreleased)")
+    # Match the first ## version header, with either (Unreleased) or a date like (2026-03-11)
     new_content = re.sub(
-        r"(## )\S+( \(Unreleased\))",
+        r"(## )\S+( \([^)]+\))",
         rf"\g<1>{new_version}\2",
         content,
         count=1,
     )
 
     if content == new_content:
-        print(f"  Warning: Could not find unreleased version header to update")
+        print(f"  Warning: Could not find version header to update")
     else:
         changelog_path.write_text(new_content, encoding="utf-8")
         print(f"  Updated version header to \"{new_version}\"")
