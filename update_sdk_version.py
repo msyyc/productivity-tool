@@ -7,6 +7,7 @@ package based on a PR link, then commits and pushes to the PR branch.
 """
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -54,17 +55,37 @@ def parse_pr_link(pr_link: str) -> tuple[str, str, int]:
     return match.group(1), match.group(2), int(match.group(3))
 
 
-def checkout_pr(repo_path: Path, pr_link: str) -> str:
-    """Checkout the PR branch using gh CLI. Handles forks automatically."""
+def checkout_pr(repo_path: Path, pr_link: str, owner: str, repo: str) -> tuple[str, str]:
+    """Checkout the PR branch using git checkout. Handles forks by adding fork owner as remote.
+
+    Returns (branch_name, remote_name).
+    """
     print(f"\n[Step 2] Checking out PR branch...")
 
-    run_command(f"gh pr checkout {pr_link}", cwd=repo_path)
+    # Get PR branch info including fork details
+    result = run_command(
+        f"gh pr view {pr_link} --json headRefName,headRepositoryOwner",
+        cwd=repo_path,
+    )
+    pr_info = json.loads(result.stdout)
+    branch = pr_info["headRefName"]
+    head_owner = pr_info["headRepositoryOwner"]["login"]
 
-    # Get the current branch name after checkout
-    result = run_command("git branch --show-current", cwd=repo_path)
-    branch = result.stdout.strip()
+    if head_owner.lower() != owner.lower():
+        # PR is from a fork — add fork owner as remote if not already present
+        fork_url = f"https://github.com/{head_owner}/{repo}.git"
+        remotes_result = run_command("git remote", cwd=repo_path)
+        if head_owner not in remotes_result.stdout.strip().splitlines():
+            run_command(f"git remote add {head_owner} {fork_url}", cwd=repo_path)
+        remote = head_owner
+    else:
+        remote = "origin"
+
+    run_command(f"git fetch {remote} {branch}", cwd=repo_path)
+    run_command(f"git checkout {branch}", cwd=repo_path)
+
     print(f"  Checked out branch: {branch}")
-    return branch
+    return branch, remote
 
 
 def get_pr_files(repo_path: Path, owner: str, repo: str, pr_number: int) -> list[str]:
@@ -218,7 +239,7 @@ def update_pyproject_toml(pyproject_path: Path, new_version: str) -> None:
     pyproject_path.write_text(content, encoding="utf-8")
 
 
-def commit_and_push(repo_path: Path, sdk_folder: str, new_version: str) -> None:
+def commit_and_push(repo_path: Path, sdk_folder: str, new_version: str, remote: str) -> None:
     """Stage, commit, and push the changes."""
     print(f"\n[Step 8] Committing and pushing changes...")
 
@@ -234,18 +255,7 @@ def commit_and_push(repo_path: Path, sdk_folder: str, new_version: str) -> None:
     commit_msg = f"update {package_name} version to {new_version}"
     run_command(f'git commit -m "{commit_msg}"', cwd=repo_path)
 
-    # gh pr checkout sets up tracking; use @{upstream} to push to the correct remote/branch (including forks)
-    result = run_command(
-        "git rev-parse --abbrev-ref --symbolic-full-name @{upstream}",
-        cwd=repo_path,
-        check=False,
-    )
-    if result.returncode == 0 and "/" in result.stdout.strip():
-        upstream = result.stdout.strip()
-        remote, remote_branch = upstream.split("/", 1)
-        run_command(f"git push {remote} HEAD:{remote_branch}", cwd=repo_path)
-    else:
-        run_command("git push", cwd=repo_path)
+    run_command(f"git push {remote} HEAD", cwd=repo_path)
 
     print("  Changes pushed successfully")
 
@@ -281,7 +291,7 @@ examples:
         reset_and_sync(repo_path)
 
         # Step 2: Checkout PR branch (handles forks automatically)
-        branch = checkout_pr(repo_path, args.pr_link)
+        branch, remote = checkout_pr(repo_path, args.pr_link, owner, repo)
 
         # Step 3: Get PR changed files and determine SDK folder
         files = get_pr_files(repo_path, owner, repo, pr_number)
@@ -301,7 +311,7 @@ examples:
         update_pyproject_toml(pyproject_path, args.version)
 
         # Step 7: Commit and push
-        commit_and_push(repo_path, sdk_folder, args.version)
+        commit_and_push(repo_path, sdk_folder, args.version, remote)
 
         print("\n" + "=" * 50)
         print("Version update completed successfully!")
