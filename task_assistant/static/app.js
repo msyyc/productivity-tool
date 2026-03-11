@@ -95,6 +95,7 @@ async function loadTasks() {
   tasks.forEach(t => _taskCache[t.id] = t);
 
   renderTasks('active-tasks', active, true);
+  history.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   renderTasks('history-tasks', history, false);
 
   document.getElementById('no-active').classList.toggle('hidden', active.length > 0);
