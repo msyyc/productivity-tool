@@ -72,7 +72,7 @@ def get_pr_files(repo_path: Path, owner: str, repo: str, pr_number: int) -> list
     print(f"\n[Step 3] Getting files changed in PR #{pr_number}...")
 
     result = run_command(
-        f"gh pr view {pr_number} --repo {owner}/{repo} --json files --jq .[].path",
+        f'gh pr view {pr_number} --repo {owner}/{repo} --json files --jq ".files[].path"',
         cwd=repo_path,
     )
     files = [f.strip() for f in result.stdout.strip().splitlines() if f.strip()]
