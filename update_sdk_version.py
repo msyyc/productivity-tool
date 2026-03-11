@@ -83,6 +83,7 @@ def checkout_pr(repo_path: Path, pr_link: str, owner: str, repo: str) -> tuple[s
 
     run_command(f"git fetch {remote} {branch}", cwd=repo_path)
     run_command(f"git checkout {branch}", cwd=repo_path)
+    run_command(f"git pull {remote} {branch}", cwd=repo_path)
 
     print(f"  Checked out branch: {branch}")
     return branch, remote
