@@ -175,7 +175,7 @@ def main():
     # NOTE: activate.bat is Windows-specific; use bin/activate on Linux/Mac
     activate = get_activate_path(venv_path)
     run_cmd(
-        venv_cmd(activate, 'pip install -e eng/tools/azure-sdk-tools'),
+        venv_cmd(activate, 'pip install -e eng/tools/azure-sdk-tools[ghtools,sdkgenerator]'),
         cwd=sdk_worktree,
     )
 
