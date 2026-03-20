@@ -13,6 +13,17 @@ When a service migrates its API spec from Swagger to TypeSpec, the generated Pyt
 
 Each package gets its own isolated git worktrees so the main repos stay clean.
 
+## Prerequisites
+
+- **Python** must be installed and available on PATH.
+- **GitHub CLI** (`gh`) must be installed and authenticated.
+
+## General Rules
+
+- All scripts (Steps 1–5) must be invoked using the `.venv` Python environment created in the SDK worktree during Step 0. Activate it or call the interpreter directly:
+  - Windows: `<sdk_worktree>/.venv/Scripts/python`
+  - Linux: `<sdk_worktree>/.venv/bin/python`
+
 ## Workflow (Multi-Step)
 
 This is a long-running workflow. Execute only the step the user requests, then stop and report results.
