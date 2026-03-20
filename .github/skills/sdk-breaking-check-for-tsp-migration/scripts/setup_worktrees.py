@@ -141,28 +141,26 @@ def main():
     print("Step 1: Create spec repo worktree")
     print("=" * 60)
     if os.path.isdir(spec_worktree):
-        print(f"Worktree already exists at {spec_worktree}, removing...")
-        run_cmd(f'git worktree remove "{spec_worktree}" --force', cwd=spec_repo)
-
-    run_cmd("git fetch origin main", cwd=spec_repo)
-    run_cmd(
-        f'git worktree add -B {spec_branch} "{spec_worktree}" origin/main',
-        cwd=spec_repo,
-    )
+        print(f"Worktree already exists at {spec_worktree}, skipping creation")
+    else:
+        run_cmd("git fetch origin main", cwd=spec_repo)
+        run_cmd(
+            f'git worktree add -B {spec_branch} "{spec_worktree}" origin/main',
+            cwd=spec_repo,
+        )
 
     # 2. Create SDK worktree
     print("\n" + "=" * 60)
     print("Step 2: Create SDK repo worktree")
     print("=" * 60)
     if os.path.isdir(sdk_worktree):
-        print(f"Worktree already exists at {sdk_worktree}, removing...")
-        run_cmd(f'git worktree remove "{sdk_worktree}" --force', cwd=sdk_repo)
-
-    run_cmd("git fetch origin main", cwd=sdk_repo)
-    run_cmd(
-        f'git worktree add -B {sdk_branch} "{sdk_worktree}" origin/main',
-        cwd=sdk_repo,
-    )
+        print(f"Worktree already exists at {sdk_worktree}, skipping creation")
+    else:
+        run_cmd("git fetch origin main", cwd=sdk_repo)
+        run_cmd(
+            f'git worktree add -B {sdk_branch} "{sdk_worktree}" origin/main',
+            cwd=sdk_repo,
+        )
 
     # 3. Set up venv in SDK worktree
     print("\n" + "=" * 60)
