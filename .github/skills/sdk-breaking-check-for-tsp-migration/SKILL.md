@@ -248,13 +248,13 @@ using Azure.ClientGenerator.Core;
 ```
 2. Update `tspconfig.yaml` to use `client.tsp` as entry point if needed
 
-**Create the PR:**
+**Create a draft spec PR:**
 
 ```
 cd <spec_worktree>
 git add . && git commit -m "Mitigate Python SDK breaking changes for {package}"
 git push <github_username> HEAD
-gh pr create --repo Azure/azure-rest-api-specs --head <github_username>:<spec_branch> --base main --title "[Python] Mitigate breaking changes for {package_name}" --body "<body>"
+gh pr create --repo Azure/azure-rest-api-specs --head <github_username>:<spec_branch> --base main --draft --title "[Python] Mitigate breaking changes for {package_name}" --body "<body>"
 ```
 
 The PR body should include a summary table of all breaking changes and their classification.
