@@ -21,10 +21,8 @@ Each package gets its own isolated git worktrees so the main repos stay clean.
 ## General Rules
 
 - All scripts (Steps 1–5) must be invoked using the `.venv` Python environment created in the SDK worktree during Step 0. **Always activate the venv first** rather than calling the interpreter by full path (full-path invocation may be blocked by sandbox restrictions):
-  ```
-  cd <sdk_worktree> && source .venv/bin/activate && python <script>
-  ```
-  On Windows, use `.venv/Scripts/activate` instead.
+  - Linux/Mac: `cd <sdk_worktree> && source .venv/bin/activate && python <script>`
+  - Windows: `cd <sdk_worktree> && .venv\Scripts\Activate.ps1 && python <script>`
 
 ## Workflow (Multi-Step)
 
