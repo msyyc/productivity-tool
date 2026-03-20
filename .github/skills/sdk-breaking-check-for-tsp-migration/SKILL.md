@@ -102,7 +102,16 @@ SELECT key, value FROM session_state
 WHERE key IN ('package_name', 'pre_migration_commit', 'spec_worktree', 'sdk_worktree');
 ```
 
-**Run the bundled script:**
+**Check for cached generation:** Before running the script, check if the SDK worktree already has a commit with the same spec commit:
+
+```
+cd <sdk_worktree>
+git log -1 --format=%B
+```
+
+If the last commit message contains a `Spec-Commit: <pre_migration_commit>` trailer matching the current `pre_migration_commit`, skip regeneration and reuse the existing code report. Parse `sdk_package_path` and `swagger_code_report` from session state (they should already be stored from the previous run).
+
+**Run the bundled script** (only if cache miss):
 
 ```
 python <skill-dir>/scripts/generate_swagger_sdk.py <package_name> <pre_migration_commit> --spec-dir <spec_worktree> --sdk-dir <sdk_worktree>
@@ -111,6 +120,15 @@ python <skill-dir>/scripts/generate_swagger_sdk.py <package_name> <pre_migration
 **Parse the `=== SESSION_STATE ===` block** to extract:
 - `sdk_package_path` — relative path to the SDK package directory
 - `swagger_code_report` — absolute path to `code_report_swagger.json`
+
+**Commit the generated SDK** with the spec commit embedded in the message:
+
+```
+cd <sdk_worktree>
+git add . && git commit -m "Generate swagger SDK for {package_name}
+
+Spec-Commit: <pre_migration_commit>"
+```
 
 **Store to SQL session state:**
 
@@ -131,7 +149,23 @@ SELECT key, value FROM session_state
 WHERE key IN ('package_name', 'spec_folder', 'spec_worktree', 'sdk_worktree', 'github_username');
 ```
 
-**Run the bundled script:**
+**Determine current spec HEAD:**
+
+```
+cd <spec_worktree>
+git rev-parse HEAD
+```
+
+**Check for cached generation:** Before running the script, check if the SDK worktree already has a commit with the same spec commit:
+
+```
+cd <sdk_worktree>
+git log -1 --format=%B
+```
+
+If the last commit message contains a `Spec-Commit: <head_sha>` trailer matching the current HEAD of the spec worktree, skip regeneration and reuse the existing code report. Parse `typespec_code_report` and `head_sha` from session state (they should already be stored from the previous run).
+
+**Run the bundled script** (only if cache miss):
 
 ```
 python <skill-dir>/scripts/generate_typespec_sdk.py <package_name> <spec_folder> --spec-dir <spec_worktree> --sdk-dir <sdk_worktree> [--remote <github_username>]
@@ -140,6 +174,15 @@ python <skill-dir>/scripts/generate_typespec_sdk.py <package_name> <spec_folder>
 **Parse the `=== SESSION_STATE ===` block** to extract:
 - `typespec_code_report` — absolute path to `code_report_typespec.json`
 - `head_sha` — HEAD commit of spec repo main branch
+
+**Commit the generated SDK** with the spec commit embedded in the message:
+
+```
+cd <sdk_worktree>
+git add . && git commit -m "Generate typespec SDK for {package_name}
+
+Spec-Commit: <head_sha>"
+```
 
 **Store to SQL session state:**
 
