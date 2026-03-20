@@ -109,7 +109,7 @@ cd <sdk_worktree>
 git log -1 --format=%B
 ```
 
-If the last commit message contains a `Spec-Commit: <pre_migration_commit>` trailer matching the current `pre_migration_commit`, skip regeneration and reuse the existing code report. Parse `sdk_package_path` and `swagger_code_report` from session state (they should already be stored from the previous run).
+If the last commit message matches the format `swagger:<pre_migration_commit>`, skip regeneration and reuse the existing code report. Parse `sdk_package_path` and `swagger_code_report` from session state (they should already be stored from the previous run).
 
 **Run the bundled script** (only if cache miss):
 
@@ -125,9 +125,7 @@ python <skill-dir>/scripts/generate_swagger_sdk.py <package_name> <pre_migration
 
 ```
 cd <sdk_worktree>
-git add . && git commit -m "Generate swagger SDK for {package_name}
-
-Spec-Commit: <pre_migration_commit>"
+git add . && git commit -m "swagger:<pre_migration_commit>"
 ```
 
 **Store to SQL session state:**
@@ -163,7 +161,7 @@ cd <sdk_worktree>
 git log -1 --format=%B
 ```
 
-If the last commit message contains a `Spec-Commit: <head_sha>` trailer matching the current HEAD of the spec worktree, skip regeneration and reuse the existing code report. Parse `typespec_code_report` and `head_sha` from session state (they should already be stored from the previous run).
+If the last commit message matches the format `typespec:<head_sha>` where `<head_sha>` matches the current HEAD of the spec worktree, skip regeneration and reuse the existing code report. Parse `typespec_code_report` and `head_sha` from session state (they should already be stored from the previous run).
 
 **Run the bundled script** (only if cache miss):
 
@@ -179,9 +177,7 @@ python <skill-dir>/scripts/generate_typespec_sdk.py <package_name> <spec_folder>
 
 ```
 cd <sdk_worktree>
-git add . && git commit -m "Generate typespec SDK for {package_name}
-
-Spec-Commit: <head_sha>"
+git add . && git commit -m "typespec:<head_sha>"
 ```
 
 **Store to SQL session state:**
