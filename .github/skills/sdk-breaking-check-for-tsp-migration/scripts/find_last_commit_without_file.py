@@ -8,6 +8,8 @@ Usage:
 Uses `gh api` to query the GitHub API — no local clone needed.
 """
 
+import argparse
+import base64
 import subprocess
 import json
 import sys
@@ -65,13 +67,12 @@ def find_tspconfig_path(package_name: str) -> str | None:
         try:
             content_endpoint = f"/repos/{OWNER}/{REPO}/contents/{urllib.parse.quote(path, safe='/')}"
             file_info = gh_api(content_endpoint)
-            import base64
             content = base64.b64decode(file_info["content"]).decode("utf-8")
-            # Check if the package name appears in the content (handles slight variations)
             if package_name.lower() in content.lower():
                 print(f"  Matched: {path}")
                 return path
-        except Exception:
+        except Exception as e:
+            print(f"  Warning: Failed to check {path}: {e}")
             continue
 
     # Fallback: if no exact match, try matching with the keyword
@@ -80,12 +81,12 @@ def find_tspconfig_path(package_name: str) -> str | None:
         try:
             content_endpoint = f"/repos/{OWNER}/{REPO}/contents/{urllib.parse.quote(path, safe='/')}"
             file_info = gh_api(content_endpoint)
-            import base64
             content = base64.b64decode(file_info["content"]).decode("utf-8")
             if keyword in content.lower():
                 print(f"  Keyword-matched: {path}")
                 return path
-        except Exception:
+        except Exception as e:
+            print(f"  Warning: Failed to check {path}: {e}")
             continue
 
     print("Could not find a matching tspconfig.yaml")
@@ -113,13 +114,22 @@ def get_parent_commit(sha: str) -> str | None:
     return None
 
 
-def main():
-    if len(sys.argv) < 2:
-        print(f"Usage: python {sys.argv[0]} <package-name>")
-        print(f"Example: python {sys.argv[0]} azure-mgmt-securityinsights")
+def check_tool(name):
+    """Check if a command-line tool is available."""
+    result = subprocess.run(f"{name} --version", shell=True, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Error: '{name}' is not installed or not in PATH")
         sys.exit(1)
 
-    package_name = sys.argv[1]
+
+def main():
+    parser = argparse.ArgumentParser(description="Find last commit without tspconfig.yaml for a package")
+    parser.add_argument("package_name", help="Full package name (e.g. azure-mgmt-securityinsights)")
+    args = parser.parse_args()
+
+    check_tool("gh")
+
+    package_name = args.package_name
     print(f"Package: {package_name}\n")
 
     # Step 1: Find the tspconfig.yaml path
@@ -143,19 +153,28 @@ def main():
 
     # Step 3: Get the parent commit (last commit without the file)
     parent_sha = get_parent_commit(sha)
-    if parent_sha:
-        parent = gh_api(f"/repos/{OWNER}/{REPO}/commits/{parent_sha}")
-        p_message = parent["commit"]["message"].split("\n")[0]
-        p_date = parent["commit"]["committer"]["date"]
-        print(f"Last commit WITHOUT the file (parent of above):")
-        print(f"  SHA:     {parent_sha}")
-        print(f"  Date:    {p_date}")
-        print(f"  Message: {p_message}")
-        folder_path = file_path.rsplit("/", 1)[0]
-        print(f"\n  Commit URL: https://github.com/{OWNER}/{REPO}/commit/{parent_sha}")
-        print(f"  Folder URL: https://github.com/{OWNER}/{REPO}/tree/{parent_sha}/{folder_path}")
-    else:
+    if not parent_sha:
         print("The file was introduced in the very first commit — no parent exists.")
+        sys.exit(1)
+
+    parent = gh_api(f"/repos/{OWNER}/{REPO}/commits/{parent_sha}")
+    p_message = parent["commit"]["message"].split("\n", 1)[0]
+    p_date = parent["commit"]["committer"]["date"]
+    print(f"Last commit WITHOUT the file (parent of above):")
+    print(f"  SHA:     {parent_sha}")
+    print(f"  Date:    {p_date}")
+    print(f"  Message: {p_message}")
+    folder_path = file_path.rsplit("/", 1)[0] if "/" in file_path else file_path
+    print(f"\n  Commit URL: https://github.com/{OWNER}/{REPO}/commit/{parent_sha}")
+    print(f"  Folder URL: https://github.com/{OWNER}/{REPO}/tree/{parent_sha}/{folder_path}")
+
+    # Output for session state parsing
+    print("\n" + "=" * 60)
+    print("=== SESSION_STATE ===")
+    print(f"tspconfig_path={file_path}")
+    print(f"pre_migration_commit={parent_sha}")
+    print(f"spec_folder={folder_path}")
+    print("=" * 60)
 
 
 if __name__ == "__main__":

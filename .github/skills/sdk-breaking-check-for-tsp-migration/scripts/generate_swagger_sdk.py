@@ -2,10 +2,10 @@
 Generate Swagger SDK and breaking change code report.
 
 Usage:
-    python generate_swagger_sdk.py <package-name> <pre-migration-commit> [--base-dir <dir>]
+    python generate_swagger_sdk.py <package-name> <pre-migration-commit> --spec-dir <dir> --sdk-dir <dir>
 
 Example:
-    python generate_swagger_sdk.py azure-mgmt-securityinsights abc123 --base-dir C:/dev
+    python generate_swagger_sdk.py azure-mgmt-securityinsights abc123 --spec-dir C:/dev/worktrees/spec-azure-mgmt-securityinsights --sdk-dir C:/dev/worktrees/sdk-azure-mgmt-securityinsights
 """
 
 import argparse
@@ -203,7 +203,10 @@ def main():
     print("Step 9: Git status and commit")
     print("=" * 60)
     run_cmd("git status", cwd=sdk_repo)
-    run_cmd('git add . && git commit -m "generate from swagger"', cwd=sdk_repo)
+    run_cmd("git add .", cwd=sdk_repo)
+    result = run_cmd('git commit -m "generate from swagger"', cwd=sdk_repo, check=False)
+    if result.returncode != 0:
+        print("No changes to commit, skipping")
 
     # Output for session state parsing
     sdk_pkg_path = f"{pkg_path}/{pkg_package_name}"

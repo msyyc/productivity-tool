@@ -47,7 +47,7 @@ def update_changelog(changelog_path, changelog_content):
     if not os.path.isfile(changelog_path):
         print(f"Warning: CHANGELOG.md not found at {changelog_path}, creating new one")
         with open(changelog_path, "w", encoding="utf-8") as f:
-            f.write("# Release History\n\n## 1.0.0b1 (Unreleased)\n\n")
+            f.write("# Release History\n\n## Unreleased\n\n")
             f.write(changelog_content + "\n")
         return
 
@@ -155,7 +155,10 @@ def main():
     print("Step 4: Git status and commit")
     print("=" * 60)
     run_cmd("git status", cwd=sdk_repo)
-    run_cmd('git add . && git commit -m "changelog from report comparison"', cwd=sdk_repo)
+    run_cmd("git add .", cwd=sdk_repo)
+    result = run_cmd('git commit -m "changelog from report comparison"', cwd=sdk_repo, check=False)
+    if result.returncode != 0:
+        print("No changes to commit, skipping")
 
     # Output for session state parsing
     print("\n" + "=" * 60)

@@ -57,6 +57,14 @@ def ensure_fork_and_remote(repo_dir, worktree_dir, upstream_owner, repo_name, us
     return username
 
 
+def check_tool(name):
+    """Check if a command-line tool is available."""
+    result = subprocess.run(f"{name} --version", shell=True, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"Error: '{name}' is not installed or not in PATH")
+        sys.exit(1)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Set up git worktrees for migration check")
     parser.add_argument("package_name", help="Full package name (e.g. azure-mgmt-securityinsights)")
@@ -65,6 +73,9 @@ def main():
     parser.add_argument("--worktrees-dir", default="C:/dev/worktrees",
                         help="Directory to create worktrees in")
     args = parser.parse_args()
+
+    check_tool("git")
+    check_tool("gh")
 
     package_name = args.package_name
     base_dir = os.path.abspath(args.base_dir)
@@ -144,6 +155,7 @@ def main():
     else:
         run_cmd(f'python -m venv "{venv_path}"', cwd=sdk_worktree)
 
+    # NOTE: activate.bat is Windows-specific; use bin/activate on Linux/Mac
     activate = os.path.join(venv_path, "Scripts", "activate.bat")
     run_cmd(
         f'call "{activate}" && pip install -e tools/azure-sdk-tools',

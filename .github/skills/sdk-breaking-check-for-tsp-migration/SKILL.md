@@ -62,10 +62,10 @@ Find the last commit in the spec repo before `tspconfig.yaml` was added for the 
 python <skill-dir>/scripts/find_last_commit_without_file.py <package-name>
 ```
 
-**Parse the output** to extract:
-- `tspconfig_path` — from the "Found tspconfig.yaml:" line
-- `pre_migration_commit` — SHA from "Last commit WITHOUT the file" section
-- `spec_folder` — `tspconfig_path` with trailing `/tspconfig.yaml` removed
+**Parse the `=== SESSION_STATE ===` block** to extract:
+- `tspconfig_path`
+- `pre_migration_commit`
+- `spec_folder`
 
 **Store to SQL session state:**
 
