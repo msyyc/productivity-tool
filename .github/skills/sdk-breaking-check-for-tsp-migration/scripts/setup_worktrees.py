@@ -5,13 +5,30 @@ Usage:
     python setup_worktrees.py <package-name> [--base-dir <dir>] [--worktrees-dir <dir>]
 
 Example:
-    python setup_worktrees.py azure-mgmt-securityinsights --base-dir C:/dev --worktrees-dir C:/dev/worktrees
+    python setup_worktrees.py azure-mgmt-securityinsights --base-dir ~/dev --worktrees-dir ~/dev/worktrees
 """
 
 import argparse
 import json
 import os
+import platform
 import subprocess
+import sys
+
+IS_WINDOWS = platform.system() == "Windows"
+
+
+def get_activate_path(venv_path):
+    if IS_WINDOWS:
+        return os.path.join(venv_path, "Scripts", "activate.bat")
+    return os.path.join(venv_path, "bin", "activate")
+
+
+def venv_cmd(activate, cmd):
+    """Wrap a command with venv activation, cross-platform."""
+    if IS_WINDOWS:
+        return f'call "{activate}" && {cmd}'
+    return f'. "{activate}" && {cmd}'
 import sys
 
 
@@ -68,9 +85,11 @@ def check_tool(name):
 def main():
     parser = argparse.ArgumentParser(description="Set up git worktrees for migration check")
     parser.add_argument("package_name", help="Full package name (e.g. azure-mgmt-securityinsights)")
-    parser.add_argument("--base-dir", default="C:/dev",
+    default_base = "C:/dev" if IS_WINDOWS else "/workspaces"
+    default_worktrees = "C:/dev/worktrees" if IS_WINDOWS else "/workspaces/worktrees"
+    parser.add_argument("--base-dir", default=default_base,
                         help="Parent dir containing azure-rest-api-specs and azure-sdk-for-python")
-    parser.add_argument("--worktrees-dir", default="C:/dev/worktrees",
+    parser.add_argument("--worktrees-dir", default=default_worktrees,
                         help="Directory to create worktrees in")
     args = parser.parse_args()
 
@@ -156,9 +175,9 @@ def main():
         run_cmd(f'python -m venv "{venv_path}"', cwd=sdk_worktree)
 
     # NOTE: activate.bat is Windows-specific; use bin/activate on Linux/Mac
-    activate = os.path.join(venv_path, "Scripts", "activate.bat")
+    activate = get_activate_path(venv_path)
     run_cmd(
-        f'call "{activate}" && pip install -e tools/azure-sdk-tools',
+        venv_cmd(activate, 'pip install -e tools/azure-sdk-tools'),
         cwd=sdk_worktree,
     )
 

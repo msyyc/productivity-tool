@@ -5,16 +5,33 @@ Usage:
     python generate_swagger_sdk.py <package-name> <pre-migration-commit> --spec-dir <dir> --sdk-dir <dir>
 
 Example:
-    python generate_swagger_sdk.py azure-mgmt-securityinsights abc123 --spec-dir C:/dev/worktrees/spec-azure-mgmt-securityinsights --sdk-dir C:/dev/worktrees/sdk-azure-mgmt-securityinsights
+    python generate_swagger_sdk.py azure-mgmt-securityinsights abc123 --spec-dir /dev/worktrees/spec-azure-mgmt-securityinsights --sdk-dir /dev/worktrees/sdk-azure-mgmt-securityinsights
 """
 
 import argparse
 import glob
 import json
 import os
+import platform
+import platform
 import shutil
 import subprocess
 import sys
+
+IS_WINDOWS = platform.system() == "Windows"
+
+
+def get_activate_path(venv_path):
+    if IS_WINDOWS:
+        return os.path.join(venv_path, "Scripts", "activate.bat")
+    return os.path.join(venv_path, "bin", "activate")
+
+
+def venv_cmd(activate, cmd):
+    """Wrap a command with venv activation, cross-platform."""
+    if IS_WINDOWS:
+        return f'call "{activate}" && {cmd}'
+    return f'. "{activate}" && {cmd}'
 
 
 def run_cmd(cmd, cwd=None, check=True):
@@ -58,7 +75,7 @@ def main():
     sdk_repo = os.path.abspath(args.sdk_dir)
     venv_path = os.path.join(sdk_repo, ".venv")
     branch_name = f"sdk-{package_name}"
-    activate = os.path.join(venv_path, "Scripts", "activate.bat")
+    activate = get_activate_path(venv_path)
 
     for path, label in [
         (rest_repo, "REST repo"),
@@ -140,7 +157,7 @@ def main():
     print("Step 5: Run sdk_generator")
     print("=" * 60)
     run_cmd(
-        f'call "{activate}" && sdk_generator .venv/generate_input_swagger.json .venv/generate_output.json',
+        venv_cmd(activate, 'sdk_generator .venv/generate_input_swagger.json .venv/generate_output.json'),
         cwd=sdk_repo,
     )
 
@@ -182,7 +199,7 @@ def main():
         shutil.rmtree(tox_dir)
 
     run_cmd(
-        f'call "{activate}" && tox run -c ../../../eng/tox/tox.ini --root . -e breaking -- --code-report',
+        venv_cmd(activate, 'tox run -c ../../../eng/tox/tox.ini --root . -e breaking -- --code-report'),
         cwd=pkg_dir,
     )
 

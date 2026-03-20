@@ -23,17 +23,17 @@ Create isolated git worktrees for the spec repo and SDK repo.
 
 **Input:** SDK package name (e.g., `azure-mgmt-securityinsights`)
 
-**Prerequisites:** `azure-rest-api-specs` and `azure-sdk-for-python` must exist under `C:/dev/`.
+**Prerequisites:** `azure-rest-api-specs` and `azure-sdk-for-python` must exist under the same parent directory (defaults to `C:/dev` on Windows, `/workspaces` on Linux).
 
 **Run the bundled script:**
 
 ```
-python <skill-dir>/scripts/setup_worktrees.py <package-name> --base-dir C:/dev --worktrees-dir C:/dev/worktrees
+python <skill-dir>/scripts/setup_worktrees.py <package-name> [--base-dir <dir>] [--worktrees-dir <dir>]
 ```
 
 This creates:
-- `C:/dev/worktrees/spec-<package-name>/` — worktree of azure-rest-api-specs on branch `spec-<package-name>`
-- `C:/dev/worktrees/sdk-<package-name>/` — worktree of azure-sdk-for-python on branch `sdk-<package-name>`
+- `<worktrees-dir>/spec-<package-name>/` — worktree of azure-rest-api-specs on branch `spec-<package-name>`
+- `<worktrees-dir>/sdk-<package-name>/` — worktree of azure-sdk-for-python on branch `sdk-<package-name>`
 - A `.venv` with `azure-sdk-tools` installed in the SDK worktree
 
 **Parse the `=== SESSION_STATE ===` block** to extract:

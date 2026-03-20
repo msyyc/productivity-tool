@@ -2,15 +2,33 @@
 Compare swagger and typespec code reports to produce a breaking change changelog.
 
 Usage:
-    python compare_reports.py <package-name> <sdk-package-path> [--base-dir <dir>]
+    python compare_reports.py <package-name> <sdk-package-path> --sdk-dir <dir>
 
 Example:
-    python compare_reports.py azure-mgmt-securityinsights sdk/securityinsight/azure-mgmt-securityinsight --base-dir C:/dev
+    python compare_reports.py azure-mgmt-securityinsights sdk/securityinsight/azure-mgmt-securityinsight --sdk-dir /dev/worktrees/sdk-azure-mgmt-securityinsights
 """
 
 import argparse
 import os
+import platform
 import re
+import subprocess
+import sys
+
+IS_WINDOWS = platform.system() == "Windows"
+
+
+def get_activate_path(venv_path):
+    if IS_WINDOWS:
+        return os.path.join(venv_path, "Scripts", "activate.bat")
+    return os.path.join(venv_path, "bin", "activate")
+
+
+def venv_cmd(activate, cmd):
+    """Wrap a command with venv activation, cross-platform."""
+    if IS_WINDOWS:
+        return f'call "{activate}" && {cmd}'
+    return f'. "{activate}" && {cmd}'
 import subprocess
 import sys
 
@@ -89,7 +107,7 @@ def main():
 
     sdk_repo = os.path.abspath(args.sdk_dir)
     venv_path = os.path.join(sdk_repo, ".venv")
-    activate = os.path.join(venv_path, "Scripts", "activate.bat")
+    activate = get_activate_path(venv_path)
     pkg_dir = os.path.join(sdk_repo, args.sdk_package_path)
 
     for path, label in [
@@ -123,7 +141,7 @@ def main():
     print("Step 1: Compare code reports")
     print("=" * 60)
     result = run_cmd(
-        f'call "{activate}" && azpysdk breaking --source-report ./code_report_swagger.json --target-report ./code_report_typespec.json --changelog',
+        venv_cmd(activate, 'azpysdk breaking --source-report ./code_report_swagger.json --target-report ./code_report_typespec.json --changelog'),
         cwd=pkg_dir,
         check=False,
     )
