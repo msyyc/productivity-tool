@@ -13,7 +13,6 @@ import glob
 import json
 import os
 import platform
-import platform
 import shutil
 import subprocess
 import sys
@@ -219,7 +218,7 @@ def main():
     print("=" * 60)
     run_cmd("git status", cwd=sdk_repo)
     run_cmd("git add .", cwd=sdk_repo)
-    result = run_cmd('git commit -m "generate from swagger"', cwd=sdk_repo, check=False)
+    result = run_cmd(f'git commit -m "generated from swagger:{commit}"', cwd=sdk_repo, check=False)
     if result.returncode != 0:
         print("No changes to commit, skipping")
 

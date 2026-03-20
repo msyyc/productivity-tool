@@ -31,10 +31,6 @@ def venv_cmd(activate, cmd):
     return f'. "{activate}" && {cmd}'
 
 
-import subprocess
-import sys
-
-
 def run_cmd(cmd, cwd=None, check=True):
     """Run a shell command, print it, and return the result."""
     print(f"\n  $ {cmd}")

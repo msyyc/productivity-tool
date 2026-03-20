@@ -2,7 +2,7 @@
 Generate TypeSpec SDK and breaking change code report.
 
 Usage:
-    python generate_typespec_sdk.py <package-name> <spec-folder> --spec-dir <dir> --sdk-dir <dir> [--remote <username>]
+    python generate_typespec_sdk.py <package-name> <spec-folder> --spec-dir <dir> --sdk-dir <dir>
 
 Example:
     python generate_typespec_sdk.py azure-mgmt-securityinsights specification/securityinsights/resource-manager/Microsoft.SecurityInsights/SecurityInsights --spec-dir /dev/worktrees/spec-azure-mgmt-securityinsights --sdk-dir /dev/worktrees/sdk-azure-mgmt-securityinsights
@@ -61,23 +61,10 @@ def main():
     parser.add_argument("spec_folder", help="TypeSpec project folder in spec repo")
     parser.add_argument("--spec-dir", required=True, help="Path to spec repo (or worktree)")
     parser.add_argument("--sdk-dir", required=True, help="Path to SDK repo (or worktree)")
-    parser.add_argument(
-        "--remote", default=None, help="Git remote name to push to (auto-detected from gh CLI if not specified)"
-    )
     args = parser.parse_args()
 
     package_name = args.package_name
     spec_folder = args.spec_folder
-
-    if args.remote:
-        remote = args.remote
-    else:
-        detect = subprocess.run("gh api user --jq .login", shell=True, capture_output=True, text=True)
-        if detect.returncode != 0:
-            print("Error: Could not detect GitHub username. Specify --remote explicitly.")
-            sys.exit(1)
-        remote = detect.stdout.strip()
-        print(f"Auto-detected remote: {remote}")
 
     package = strip_mgmt_prefix(package_name)
     rest_repo = os.path.abspath(args.spec_dir)
@@ -102,7 +89,6 @@ def main():
     print(f"REST repo:     {rest_repo}")
     print(f"SDK repo:      {sdk_repo}")
     print(f"Spec folder:   {spec_folder}")
-    print(f"Remote:        {remote}")
 
     # 1. Clean REST repo and checkout origin/main
     print("\n" + "=" * 60)
@@ -229,15 +215,9 @@ def main():
     print("=" * 60)
     run_cmd("git status", cwd=sdk_repo)
     run_cmd("git add .", cwd=sdk_repo)
-    result = run_cmd('git commit -m "generate from typespec"', cwd=sdk_repo, check=False)
+    result = run_cmd(f'git commit -m "generated from typespec:{head_sha}"', cwd=sdk_repo, check=False)
     if result.returncode != 0:
         print("No changes to commit, skipping")
-
-    # 10. Push
-    print("\n" + "=" * 60)
-    print(f"Step 10: Push to {remote}")
-    print("=" * 60)
-    run_cmd(f"git push {remote} HEAD", cwd=sdk_repo)
 
     # Output for session state parsing
     print("\n" + "=" * 60)

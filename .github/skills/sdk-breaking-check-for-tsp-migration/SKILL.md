@@ -121,12 +121,7 @@ python <skill-dir>/scripts/generate_swagger_sdk.py <package_name> <pre_migration
 - `sdk_package_path` — relative path to the SDK package directory
 - `swagger_code_report` — absolute path to `code_report_swagger.json`
 
-**Commit the generated SDK** with the spec commit embedded in the message:
-
-```
-cd <sdk_worktree>
-git add . && git commit -m "generated from swagger:<pre_migration_commit>"
-```
+The script automatically commits with the message `generated from swagger:<pre_migration_commit>` (used for cache detection on re-runs).
 
 **Store to SQL session state:**
 
@@ -166,19 +161,14 @@ If the last commit message matches the format `generated from typespec:<head_sha
 **Run the bundled script** (only if cache miss):
 
 ```
-python <skill-dir>/scripts/generate_typespec_sdk.py <package_name> <spec_folder> --spec-dir <spec_worktree> --sdk-dir <sdk_worktree> [--remote <github_username>]
+python <skill-dir>/scripts/generate_typespec_sdk.py <package_name> <spec_folder> --spec-dir <spec_worktree> --sdk-dir <sdk_worktree>
 ```
 
 **Parse the `=== SESSION_STATE ===` block** to extract:
 - `typespec_code_report` — absolute path to `code_report_typespec.json`
 - `head_sha` — HEAD commit of spec repo main branch
 
-**Commit the generated SDK** with the spec commit embedded in the message:
-
-```
-cd <sdk_worktree>
-git add . && git commit -m "generated from typespec:<head_sha>"
-```
+The script automatically commits with the message `generated from typespec:<head_sha>` (used for cache detection on re-runs).
 
 **Store to SQL session state:**
 
@@ -208,6 +198,8 @@ python <skill-dir>/scripts/compare_reports.py <package_name> <sdk_package_path> 
 **Parse the `=== SESSION_STATE ===` block** to extract:
 - `changelog_path` — absolute path to the updated CHANGELOG.md
 - `has_breaking_changes` — `true` or `false`
+
+The script automatically commits the changelog update.
 
 **Store to SQL session state:**
 
