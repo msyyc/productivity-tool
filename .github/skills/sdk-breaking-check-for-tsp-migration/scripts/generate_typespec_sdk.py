@@ -12,7 +12,6 @@ import argparse
 import json
 import os
 import platform
-import shutil
 import subprocess
 import sys
 
@@ -187,13 +186,8 @@ def main():
     print("\n" + "=" * 60)
     print("Step 7: Run breaking change code report")
     print("=" * 60)
-    tox_dir = os.path.join(pkg_dir, ".tox")
-    if os.path.isdir(tox_dir):
-        print("Cleaning .tox directory...")
-        shutil.rmtree(tox_dir)
-
     run_cmd(
-        venv_cmd(activate, "tox run -c ../../../eng/tox/tox.ini --root . -e breaking -- --code-report"),
+        venv_cmd(activate, "azpysdk breaking . --code-report"),
         cwd=pkg_dir,
     )
 
