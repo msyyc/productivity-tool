@@ -6,6 +6,7 @@ import tempfile
 import pytest
 
 import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from compare_reports import parse_changelog, update_changelog
@@ -37,11 +38,7 @@ class TestParseChangelog:
         assert result is None
 
     def test_empty_changelog(self):
-        output = (
-            "===== changelog start =====\n"
-            "\n"
-            "===== changelog end =====\n"
-        )
+        output = "===== changelog start =====\n" "\n" "===== changelog end =====\n"
         result = parse_changelog(output)
         # Empty string stripped becomes empty or None-ish
         assert result == "" or result is None

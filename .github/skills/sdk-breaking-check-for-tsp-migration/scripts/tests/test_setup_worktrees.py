@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 
 import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from setup_worktrees import run_cmd, get_github_username, ensure_fork_and_remote
@@ -18,27 +19,21 @@ from setup_worktrees import run_cmd, get_github_username, ensure_fork_and_remote
 class TestRunCmd:
     @patch("setup_worktrees.subprocess.run")
     def test_success(self, mock_run):
-        mock_run.return_value = MagicMock(
-            stdout="output\n", stderr="", returncode=0
-        )
+        mock_run.return_value = MagicMock(stdout="output\n", stderr="", returncode=0)
         result = run_cmd("echo hello")
         assert result.returncode == 0
         mock_run.assert_called_once()
 
     @patch("setup_worktrees.subprocess.run")
     def test_failure_with_check_true(self, mock_run):
-        mock_run.return_value = MagicMock(
-            stdout="", stderr="error msg", returncode=1
-        )
+        mock_run.return_value = MagicMock(stdout="", stderr="error msg", returncode=1)
         with pytest.raises(SystemExit) as exc_info:
             run_cmd("bad command", check=True)
         assert exc_info.value.code == 1
 
     @patch("setup_worktrees.subprocess.run")
     def test_failure_with_check_false(self, mock_run):
-        mock_run.return_value = MagicMock(
-            stdout="", stderr="error msg", returncode=1
-        )
+        mock_run.return_value = MagicMock(stdout="", stderr="error msg", returncode=1)
         result = run_cmd("bad command", check=False)
         assert result.returncode == 1
 
@@ -46,9 +41,7 @@ class TestRunCmd:
     def test_passes_cwd(self, mock_run):
         mock_run.return_value = MagicMock(stdout="", stderr="", returncode=0)
         run_cmd("ls", cwd="/some/dir")
-        mock_run.assert_called_once_with(
-            "ls", cwd="/some/dir", shell=True, capture_output=True, text=True
-        )
+        mock_run.assert_called_once_with("ls", cwd="/some/dir", shell=True, capture_output=True, text=True)
 
 
 # ---------------------------------------------------------------------------

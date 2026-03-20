@@ -19,9 +19,7 @@ REPO = "azure-rest-api-specs"
 
 
 def git_cmd(args: list[str], cwd: str) -> str:
-    result = subprocess.run(
-        ["git"] + args, capture_output=True, text=True, cwd=cwd
-    )
+    result = subprocess.run(["git"] + args, capture_output=True, text=True, cwd=cwd)
     if result.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
     return result.stdout.strip()
@@ -32,7 +30,7 @@ def extract_search_keyword(package_name: str) -> str:
     name = package_name.lower()
     for prefix in ("azure-mgmt-", "azure-"):
         if name.startswith(prefix):
-            name = name[len(prefix):]
+            name = name[len(prefix) :]
             break
     return name
 

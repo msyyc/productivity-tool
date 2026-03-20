@@ -45,7 +45,10 @@ def _spawn_popup(title: str, message: str, link: str, on_dismiss=None):
     try:
         result = subprocess.run(
             [sys.executable, str(_POPUP_SCRIPT)],
-            input=payload, text=True, capture_output=True, timeout=600,
+            input=payload,
+            text=True,
+            capture_output=True,
+            timeout=600,
         )
         # Subprocess returns "dismissed" if user clicked dismiss/close
         if on_dismiss and result.stdout.strip() == "dismissed":

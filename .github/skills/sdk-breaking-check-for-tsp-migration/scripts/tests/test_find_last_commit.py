@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 
 import sys, os
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from find_last_commit_without_file import (
@@ -52,9 +53,7 @@ class TestGhApi:
         )
         result = gh_api("/user")
         assert result == {"login": "testuser"}
-        mock_run.assert_called_once_with(
-            ["gh", "api", "/user"], capture_output=True, text=True, check=True
-        )
+        mock_run.assert_called_once_with(["gh", "api", "/user"], capture_output=True, text=True, check=True)
 
     @patch("find_last_commit_without_file.subprocess.run")
     def test_paginate_merges_arrays(self, mock_run):

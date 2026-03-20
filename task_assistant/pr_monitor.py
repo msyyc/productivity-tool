@@ -16,9 +16,10 @@ def check_pr_state(repo: str, pr_number: int) -> str:
     """Check if PR is open, merged, or closed."""
     try:
         result = subprocess.run(
-            ["gh", "pr", "view", str(pr_number), "--repo", repo,
-             "--json", "state", "--template", "{{.state}}"],
-            capture_output=True, text=True, timeout=30
+            ["gh", "pr", "view", str(pr_number), "--repo", repo, "--json", "state", "--template", "{{.state}}"],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         return result.stdout.strip() if result.returncode == 0 else "UNKNOWN"
     except Exception:
@@ -33,9 +34,10 @@ def check_ci_status(repo: str, pr_number: int) -> str:
     """
     try:
         result = subprocess.run(
-            ["gh", "pr", "checks", str(pr_number), "--repo", repo,
-             "--json", "name,state"],
-            capture_output=True, text=True, timeout=30
+            ["gh", "pr", "checks", str(pr_number), "--repo", repo, "--json", "name,state"],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         if result.returncode != 0 or not result.stdout.strip():
             return "UNKNOWN"

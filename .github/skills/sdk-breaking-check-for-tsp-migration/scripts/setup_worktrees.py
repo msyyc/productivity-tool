@@ -29,6 +29,8 @@ def venv_cmd(activate, cmd):
     if IS_WINDOWS:
         return f'call "{activate}" && {cmd}'
     return f'. "{activate}" && {cmd}'
+
+
 import sys
 
 
@@ -87,10 +89,10 @@ def main():
     parser.add_argument("package_name", help="Full package name (e.g. azure-mgmt-securityinsights)")
     default_base = "C:/dev" if IS_WINDOWS else "/workspaces"
     default_worktrees = "C:/dev/worktrees" if IS_WINDOWS else "/workspaces/worktrees"
-    parser.add_argument("--base-dir", default=default_base,
-                        help="Parent dir containing azure-rest-api-specs and azure-sdk-for-python")
-    parser.add_argument("--worktrees-dir", default=default_worktrees,
-                        help="Directory to create worktrees in")
+    parser.add_argument(
+        "--base-dir", default=default_base, help="Parent dir containing azure-rest-api-specs and azure-sdk-for-python"
+    )
+    parser.add_argument("--worktrees-dir", default=default_worktrees, help="Directory to create worktrees in")
     args = parser.parse_args()
 
     check_tool("git")
@@ -175,7 +177,7 @@ def main():
     # NOTE: activate.bat is Windows-specific; use bin/activate on Linux/Mac
     activate = get_activate_path(venv_path)
     run_cmd(
-        venv_cmd(activate, 'pip install -e eng/tools/azure-sdk-tools[ghtools,sdkgenerator]'),
+        venv_cmd(activate, "pip install -e eng/tools/azure-sdk-tools[ghtools,sdkgenerator]"),
         cwd=sdk_worktree,
     )
 

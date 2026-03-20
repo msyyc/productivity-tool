@@ -11,7 +11,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from task_assistant.models import (
-    Task, TaskType, TaskStatus, PRMonitorConfig, ReminderConfig, CreateTaskRequest,
+    Task,
+    TaskType,
+    TaskStatus,
+    PRMonitorConfig,
+    ReminderConfig,
+    CreateTaskRequest,
 )
 from task_assistant.storage import TaskStore, AnnotationStore
 from task_assistant.scheduler import Scheduler
@@ -65,8 +70,10 @@ async def create_task(req: CreateTaskRequest):
         timeout = req.timeout_minutes or 30
         expire_at = datetime.now(timezone.utc) + timedelta(minutes=timeout)
         task.pr_monitor = PRMonitorConfig(
-            repo=pr_match.group(1), pr_number=int(pr_match.group(2)),
-            timeout_minutes=timeout, expire_at=expire_at.isoformat(),
+            repo=pr_match.group(1),
+            pr_number=int(pr_match.group(2)),
+            timeout_minutes=timeout,
+            expire_at=expire_at.isoformat(),
         )
 
     elif req.type == TaskType.REMINDER:
@@ -139,7 +146,9 @@ def _fetch_pr_title(repo: str, pr_number: int) -> str:
     try:
         result = subprocess.run(
             ["gh", "pr", "view", str(pr_number), "--repo", repo, "--json", "title", "--jq", ".title"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
@@ -157,11 +166,26 @@ def _fetch_breaking_prs(repo: str) -> list[dict]:
     for label in BREAKING_LABELS:
         try:
             result = subprocess.run(
-                ["gh", "pr", "list", "--repo", repo, "--state", "open",
-                 "--label", label, "--label", "ARMSignedOff",
-                 "--json", "number,title,url,labels,author,createdAt",
-                 "--limit", "50"],
-                capture_output=True, text=True, timeout=30,
+                [
+                    "gh",
+                    "pr",
+                    "list",
+                    "--repo",
+                    repo,
+                    "--state",
+                    "open",
+                    "--label",
+                    label,
+                    "--label",
+                    "ARMSignedOff",
+                    "--json",
+                    "number,title,url,labels,author,createdAt",
+                    "--limit",
+                    "50",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             if result.returncode != 0:
                 continue
@@ -172,14 +196,16 @@ def _fetch_breaking_prs(repo: str) -> list[dict]:
                 seen.add(pr["number"])
                 pr_labels = {l["name"] for l in pr.get("labels", [])}
                 if not pr_labels.intersection(APPROVED_LABELS):
-                    all_prs.append({
-                        "number": pr["number"],
-                        "title": pr["title"],
-                        "url": pr["url"],
-                        "author": pr.get("author", {}).get("login", ""),
-                        "created_at": pr.get("createdAt", ""),
-                        "repo": repo,
-                    })
+                    all_prs.append(
+                        {
+                            "number": pr["number"],
+                            "title": pr["title"],
+                            "url": pr["url"],
+                            "author": pr.get("author", {}).get("login", ""),
+                            "created_at": pr.get("createdAt", ""),
+                            "repo": repo,
+                        }
+                    )
         except Exception:
             continue
     return all_prs
@@ -188,9 +214,7 @@ def _fetch_breaking_prs(repo: str) -> list[dict]:
 @app.get("/api/breaking-prs")
 async def list_breaking_prs():
     loop = asyncio.get_event_loop()
-    results = await asyncio.gather(
-        *[loop.run_in_executor(None, _fetch_breaking_prs, repo) for repo in BREAKING_REPOS]
-    )
+    results = await asyncio.gather(*[loop.run_in_executor(None, _fetch_breaking_prs, repo) for repo in BREAKING_REPOS])
     all_prs = []
     for prs in results:
         all_prs.extend(prs)
@@ -210,10 +234,14 @@ async def update_breaking_pr_annotation(repo_owner: str, repo_name: str, pr_numb
 
 def main():
     import uvicorn
+
     uvicorn.run(
         "task_assistant.main:app",
-        host="127.0.0.1", port=8347, log_level="info",
-        reload=True, reload_dirs=[str(Path(__file__).parent)],
+        host="127.0.0.1",
+        port=8347,
+        log_level="info",
+        reload=True,
+        reload_dirs=[str(Path(__file__).parent)],
     )
 
 

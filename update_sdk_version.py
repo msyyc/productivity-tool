@@ -14,9 +14,7 @@ import sys
 from pathlib import Path
 
 
-def run_command(
-    cmd: str | list[str], cwd: str | Path | None = None, check: bool = True
-) -> subprocess.CompletedProcess:
+def run_command(cmd: str | list[str], cwd: str | Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
     """Run a shell command and return the result."""
     if isinstance(cmd, str):
         print(f"  Running: {cmd}")
@@ -119,8 +117,7 @@ def determine_sdk_folder(files: list[str]) -> str:
 
     if not sdk_folders:
         raise RuntimeError(
-            "No SDK package folder found in the changed files. "
-            "Expected files under sdk/<service>/<package-name>/."
+            "No SDK package folder found in the changed files. " "Expected files under sdk/<service>/<package-name>/."
         )
 
     if len(sdk_folders) > 1:
@@ -141,21 +138,15 @@ SKIP_DIRS = {".tox", ".venv", "venv", "dist", "build", "__pycache__", ".eggs", "
 def find_version_file(sdk_folder_path: Path) -> Path:
     """Find the _version.py file inside the SDK package folder, skipping cached/build dirs."""
     version_files = [
-        f for f in sdk_folder_path.rglob("_version.py")
-        if not (SKIP_DIRS & set(f.relative_to(sdk_folder_path).parts))
+        f for f in sdk_folder_path.rglob("_version.py") if not (SKIP_DIRS & set(f.relative_to(sdk_folder_path).parts))
     ]
     if not version_files:
         raise RuntimeError(f"No _version.py found under {sdk_folder_path}")
     if len(version_files) > 1:
-        filtered = [
-            f for f in version_files
-            if "test" not in str(f).lower() and "sample" not in str(f).lower()
-        ]
+        filtered = [f for f in version_files if "test" not in str(f).lower() and "sample" not in str(f).lower()]
         if len(filtered) == 1:
             return filtered[0]
-        raise RuntimeError(
-            f"Multiple _version.py files found: {[str(f) for f in version_files]}"
-        )
+        raise RuntimeError(f"Multiple _version.py files found: {[str(f) for f in version_files]}")
     return version_files[0]
 
 
@@ -174,7 +165,7 @@ def update_version_file(version_file: Path, new_version: str) -> None:
         print(f"  Warning: VERSION string not found or already set to {new_version}")
     else:
         version_file.write_text(new_content, encoding="utf-8")
-        print(f"  Updated VERSION to \"{new_version}\"")
+        print(f'  Updated VERSION to "{new_version}"')
 
 
 def update_changelog(changelog_path: Path, new_version: str) -> None:
@@ -199,7 +190,7 @@ def update_changelog(changelog_path: Path, new_version: str) -> None:
         print(f"  Warning: Could not find version header to update")
     else:
         changelog_path.write_text(new_content, encoding="utf-8")
-        print(f"  Updated version header to \"{new_version}\"")
+        print(f'  Updated version header to "{new_version}"')
 
 
 def update_pyproject_toml(pyproject_path: Path, new_version: str) -> None:
@@ -235,7 +226,7 @@ def update_pyproject_toml(pyproject_path: Path, new_version: str) -> None:
             f'"{new_status}"',
             content,
         )
-        print(f"  Set classifier to \"{new_status}\"")
+        print(f'  Set classifier to "{new_status}"')
 
     pyproject_path.write_text(content, encoding="utf-8")
 
@@ -271,7 +262,9 @@ examples:
   python update_sdk_version.py https://github.com/Azure/azure-sdk-for-python/pull/45605 C:\\dev\\azure-sdk-for-python 1.0.0b1
 """,
     )
-    parser.add_argument("pr_link", type=str, help="GitHub PR link (e.g., https://github.com/Azure/azure-sdk-for-python/pull/12345)")
+    parser.add_argument(
+        "pr_link", type=str, help="GitHub PR link (e.g., https://github.com/Azure/azure-sdk-for-python/pull/12345)"
+    )
     parser.add_argument("repo_path", type=str, help="Path to the local Azure SDK for Python repository")
     parser.add_argument("version", type=str, help="Version number to set (e.g., 1.2.0 or 1.0.0b1)")
 

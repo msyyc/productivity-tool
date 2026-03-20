@@ -61,14 +61,23 @@ class Scheduler:
                     return
                 if ci == "ALL_COMPLETE":
                     if cfg.repo not in ("Azure/azure-rest-api-specs", "microsoft/typespec"):
-                        self._trigger(task, "CI Passed", f"{pr_title}\nAll CI checks passed on #{cfg.pr_number} in {cfg.repo}")
+                        self._trigger(
+                            task, "CI Passed", f"{pr_title}\nAll CI checks passed on #{cfg.pr_number} in {cfg.repo}"
+                        )
                         return
 
                 # Check timeout
                 if expire_at and datetime.now(timezone.utc) >= expire_at:
-                    status_msg = {"IN_PROGRESS": "still in progress", "ALL_COMPLETE": "all passed", "UNKNOWN": "unknown"}.get(ci, ci)
-                    self._trigger(task, "⏰ PR Monitor Timeout",
-                                  f"{pr_title}\nTime's up for #{cfg.pr_number} in {cfg.repo}\nCI status: {status_msg}")
+                    status_msg = {
+                        "IN_PROGRESS": "still in progress",
+                        "ALL_COMPLETE": "all passed",
+                        "UNKNOWN": "unknown",
+                    }.get(ci, ci)
+                    self._trigger(
+                        task,
+                        "⏰ PR Monitor Timeout",
+                        f"{pr_title}\nTime's up for #{cfg.pr_number} in {cfg.repo}\nCI status: {status_msg}",
+                    )
                     return
 
                 # Sleep until next poll or expiry, whichever is sooner

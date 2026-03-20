@@ -3,6 +3,7 @@
 Prints "opened" on stdout when the link is opened, "dismissed" when dismissed.
 This runs in its own process so Tcl crashes never affect the main server.
 """
+
 import json
 import sys
 import webbrowser
@@ -69,7 +70,9 @@ def _show_popup_window(title: str, message: str, link: str):
     header_frame.place(x=24, y=18, width=W - 48, height=44)
 
     tk.Label(header_frame, text=icon, font=icon_font, bg=BG, fg=ACCENT).pack(side="left", padx=(0, 12))
-    tk.Label(header_frame, text=title, font=title_font, bg=BG, fg=FG, anchor="w").pack(side="left", fill="x", expand=True)
+    tk.Label(header_frame, text=title, font=title_font, bg=BG, fg=FG, anchor="w").pack(
+        side="left", fill="x", expand=True
+    )
 
     close_btn = tk.Label(header_frame, text="✕", font=close_font, bg=BG, fg=OVERLAY, cursor="hand2")
     close_btn.pack(side="right")
@@ -77,8 +80,9 @@ def _show_popup_window(title: str, message: str, link: str):
     # Message (PR title or description)
     content_y = 70
     if message:
-        msg_label = tk.Label(root, text=message, font=msg_font, bg=BG, fg=FG,
-                             wraplength=W - 56, anchor="w", justify="left")
+        msg_label = tk.Label(
+            root, text=message, font=msg_font, bg=BG, fg=FG, wraplength=W - 56, anchor="w", justify="left"
+        )
         msg_label.place(x=28, y=content_y)
         content_y += 36
 
@@ -87,8 +91,7 @@ def _show_popup_window(title: str, message: str, link: str):
 
     # Link row
     display_link = link if len(link) <= 65 else link[:62] + "…"
-    link_label = tk.Label(root, text=display_link, font=link_font, bg=BG, fg=ACCENT,
-                          cursor="hand2", anchor="w")
+    link_label = tk.Label(root, text=display_link, font=link_font, bg=BG, fg=ACCENT, cursor="hand2", anchor="w")
     link_label.place(x=28, y=content_y + 14)
 
     result = ["dismissed"]
@@ -119,16 +122,22 @@ def _show_popup_window(title: str, message: str, link: str):
             _close()
 
     btn_canvas.bind("<Button-1>", _btn_click)
-    btn_canvas.bind("<Motion>", lambda e: (
-        btn_canvas.itemconfig(open_btn_id, fill=ACCENT_HOVER if e.x <= 140 else ACCENT),
-        btn_canvas.itemconfig(dismiss_btn_id, fill=SURFACE1 if 154 <= e.x <= 280 else SURFACE0),
-        btn_canvas.itemconfig(dismiss_txt_id, fill=FG if 154 <= e.x <= 280 else SUBTEXT),
-    ))
-    btn_canvas.bind("<Leave>", lambda e: (
-        btn_canvas.itemconfig(open_btn_id, fill=ACCENT),
-        btn_canvas.itemconfig(dismiss_btn_id, fill=SURFACE0),
-        btn_canvas.itemconfig(dismiss_txt_id, fill=SUBTEXT),
-    ))
+    btn_canvas.bind(
+        "<Motion>",
+        lambda e: (
+            btn_canvas.itemconfig(open_btn_id, fill=ACCENT_HOVER if e.x <= 140 else ACCENT),
+            btn_canvas.itemconfig(dismiss_btn_id, fill=SURFACE1 if 154 <= e.x <= 280 else SURFACE0),
+            btn_canvas.itemconfig(dismiss_txt_id, fill=FG if 154 <= e.x <= 280 else SUBTEXT),
+        ),
+    )
+    btn_canvas.bind(
+        "<Leave>",
+        lambda e: (
+            btn_canvas.itemconfig(open_btn_id, fill=ACCENT),
+            btn_canvas.itemconfig(dismiss_btn_id, fill=SURFACE0),
+            btn_canvas.itemconfig(dismiss_txt_id, fill=SUBTEXT),
+        ),
+    )
 
     # Close button and link
     close_btn.bind("<Button-1>", lambda e: _close())
@@ -163,12 +172,30 @@ def _show_popup_window(title: str, message: str, link: str):
 
 def _rounded_rect(canvas, x1, y1, x2, y2, r, **kwargs):
     points = [
-        x1 + r, y1, x2 - r, y1,
-        x2, y1, x2, y1 + r,
-        x2, y2 - r, x2, y2,
-        x2 - r, y2, x1 + r, y2,
-        x1, y2, x1, y2 - r,
-        x1, y1 + r, x1, y1,
+        x1 + r,
+        y1,
+        x2 - r,
+        y1,
+        x2,
+        y1,
+        x2,
+        y1 + r,
+        x2,
+        y2 - r,
+        x2,
+        y2,
+        x2 - r,
+        y2,
+        x1 + r,
+        y2,
+        x1,
+        y2,
+        x1,
+        y2 - r,
+        x1,
+        y1 + r,
+        x1,
+        y1,
     ]
     return canvas.create_polygon(points, smooth=True, **kwargs)
 

@@ -23,6 +23,7 @@ def _open_dashboard(icon=None, item=None):
 def _quit(icon, item):
     icon.stop()
     import sys
+
     sys.exit(0)
 
 

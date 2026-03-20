@@ -51,7 +51,7 @@ def strip_mgmt_prefix(package_name):
     name = package_name.lower()
     for prefix in ("azure-mgmt-", "azure-"):
         if name.startswith(prefix):
-            return name[len(prefix):]
+            return name[len(prefix) :]
     return name
 
 
@@ -59,11 +59,11 @@ def main():
     parser = argparse.ArgumentParser(description="Generate TypeSpec SDK and code report")
     parser.add_argument("package_name", help="Full package name (e.g. azure-mgmt-securityinsights)")
     parser.add_argument("spec_folder", help="TypeSpec project folder in spec repo")
-    parser.add_argument("--spec-dir", required=True,
-                        help="Path to spec repo (or worktree)")
-    parser.add_argument("--sdk-dir", required=True,
-                        help="Path to SDK repo (or worktree)")
-    parser.add_argument("--remote", default=None, help="Git remote name to push to (auto-detected from gh CLI if not specified)")
+    parser.add_argument("--spec-dir", required=True, help="Path to spec repo (or worktree)")
+    parser.add_argument("--sdk-dir", required=True, help="Path to SDK repo (or worktree)")
+    parser.add_argument(
+        "--remote", default=None, help="Git remote name to push to (auto-detected from gh CLI if not specified)"
+    )
     args = parser.parse_args()
 
     package_name = args.package_name
@@ -145,18 +145,33 @@ def main():
         json.dump(input_data, f, indent=2)
     print(json.dumps(input_data, indent=2))
 
-    # 4. Run sdk_generator
+    # 4. Install tsp-client dependencies
     print("\n" + "=" * 60)
-    print("Step 4: Run sdk_generator")
+    print("Step 4: Install tsp-client dependencies")
+    print("=" * 60)
+    tsp_client_dir = os.path.join(sdk_repo, "eng", "common", "tsp-client")
+    if os.path.isdir(tsp_client_dir):
+        node_modules = os.path.join(tsp_client_dir, "node_modules")
+        if not os.path.isdir(node_modules):
+            print("Installing tsp-client npm dependencies...")
+            run_cmd("npm ci", cwd=tsp_client_dir)
+        else:
+            print("tsp-client node_modules already exists, skipping install")
+    else:
+        print(f"Warning: tsp-client directory not found at {tsp_client_dir}")
+
+    # 5. Run sdk_generator
+    print("\n" + "=" * 60)
+    print("Step 5: Run sdk_generator")
     print("=" * 60)
     run_cmd(
-        venv_cmd(activate, 'sdk_generator .venv/generate_input_typespec.json .venv/generate_output.json'),
+        venv_cmd(activate, "sdk_generator .venv/generate_input_typespec.json .venv/generate_output.json"),
         cwd=sdk_repo,
     )
 
-    # 5. Parse generate_output.json
+    # 6. Parse generate_output.json
     print("\n" + "=" * 60)
-    print("Step 5: Parse generate_output.json")
+    print("Step 6: Parse generate_output.json")
     print("=" * 60)
     output_path = os.path.join(venv_path, "generate_output.json")
     with open(output_path, "r", encoding="utf-8") as f:
@@ -182,9 +197,9 @@ def main():
         print(f"Error: Package directory not found at {pkg_dir}")
         sys.exit(1)
 
-    # 6. Run tox breaking change report
+    # 7. Run tox breaking change report
     print("\n" + "=" * 60)
-    print("Step 6: Run breaking change code report")
+    print("Step 7: Run breaking change code report")
     print("=" * 60)
     tox_dir = os.path.join(pkg_dir, ".tox")
     if os.path.isdir(tox_dir):
@@ -192,13 +207,13 @@ def main():
         shutil.rmtree(tox_dir)
 
     run_cmd(
-        venv_cmd(activate, 'tox run -c ../../../eng/tox/tox.ini --root . -e breaking -- --code-report'),
+        venv_cmd(activate, "tox run -c ../../../eng/tox/tox.ini --root . -e breaking -- --code-report"),
         cwd=pkg_dir,
     )
 
-    # 7. Rename code_report.json -> code_report_typespec.json
+    # 8. Rename code_report.json -> code_report_typespec.json
     print("\n" + "=" * 60)
-    print("Step 7: Rename code_report.json -> code_report_typespec.json")
+    print("Step 8: Rename code_report.json -> code_report_typespec.json")
     print("=" * 60)
     report_src = os.path.join(pkg_dir, "code_report.json")
     report_dst = os.path.join(pkg_dir, "code_report_typespec.json")
@@ -208,9 +223,9 @@ def main():
     else:
         print(f"Warning: code_report.json not found at {report_src}")
 
-    # 8. Git status and commit
+    # 9. Git status and commit
     print("\n" + "=" * 60)
-    print("Step 8: Git status and commit")
+    print("Step 9: Git status and commit")
     print("=" * 60)
     run_cmd("git status", cwd=sdk_repo)
     run_cmd("git add .", cwd=sdk_repo)
@@ -218,9 +233,9 @@ def main():
     if result.returncode != 0:
         print("No changes to commit, skipping")
 
-    # 9. Push
+    # 10. Push
     print("\n" + "=" * 60)
-    print(f"Step 9: Push to {remote}")
+    print(f"Step 10: Push to {remote}")
     print("=" * 60)
     run_cmd(f"git push {remote} HEAD", cwd=sdk_repo)
 

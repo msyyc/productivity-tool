@@ -5,6 +5,7 @@ import os
 import pytest
 
 import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from generate_typespec_sdk import strip_mgmt_prefix

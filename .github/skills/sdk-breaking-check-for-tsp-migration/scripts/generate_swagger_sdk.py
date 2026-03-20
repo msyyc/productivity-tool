@@ -53,7 +53,7 @@ def strip_mgmt_prefix(package_name):
     name = package_name.lower()
     for prefix in ("azure-mgmt-", "azure-"):
         if name.startswith(prefix):
-            return name[len(prefix):]
+            return name[len(prefix) :]
     return name
 
 
@@ -61,10 +61,8 @@ def main():
     parser = argparse.ArgumentParser(description="Generate Swagger SDK and code report")
     parser.add_argument("package_name", help="Full package name (e.g. azure-mgmt-securityinsights)")
     parser.add_argument("pre_migration_commit", help="REST repo commit SHA (pre-migration)")
-    parser.add_argument("--spec-dir", required=True,
-                        help="Path to spec repo (or worktree)")
-    parser.add_argument("--sdk-dir", required=True,
-                        help="Path to SDK repo (or worktree)")
+    parser.add_argument("--spec-dir", required=True, help="Path to spec repo (or worktree)")
+    parser.add_argument("--sdk-dir", required=True, help="Path to SDK repo (or worktree)")
     args = parser.parse_args()
 
     package_name = args.package_name
@@ -157,7 +155,7 @@ def main():
     print("Step 5: Run sdk_generator")
     print("=" * 60)
     run_cmd(
-        venv_cmd(activate, 'sdk_generator .venv/generate_input_swagger.json .venv/generate_output.json'),
+        venv_cmd(activate, "sdk_generator .venv/generate_input_swagger.json .venv/generate_output.json"),
         cwd=sdk_repo,
     )
 
@@ -199,7 +197,7 @@ def main():
         shutil.rmtree(tox_dir)
 
     run_cmd(
-        venv_cmd(activate, 'tox run -c ../../../eng/tox/tox.ini --root . -e breaking -- --code-report'),
+        venv_cmd(activate, "tox run -c ../../../eng/tox/tox.ini --root . -e breaking -- --code-report"),
         cwd=pkg_dir,
     )
 

@@ -29,6 +29,8 @@ def venv_cmd(activate, cmd):
     if IS_WINDOWS:
         return f'call "{activate}" && {cmd}'
     return f'. "{activate}" && {cmd}'
+
+
 import subprocess
 import sys
 
@@ -83,13 +85,7 @@ def update_changelog(changelog_path, changelog_content):
         else:
             end_pos = len(content)
 
-        new_content = (
-            content[:insert_pos]
-            + "\n"
-            + changelog_content
-            + "\n"
-            + content[end_pos:]
-        )
+        new_content = content[:insert_pos] + "\n" + changelog_content + "\n" + content[end_pos:]
     else:
         new_content = content + "\n" + changelog_content + "\n"
 
@@ -100,9 +96,11 @@ def update_changelog(changelog_path, changelog_content):
 def main():
     parser = argparse.ArgumentParser(description="Compare code reports and generate changelog")
     parser.add_argument("package_name", help="Full package name (e.g. azure-mgmt-securityinsights)")
-    parser.add_argument("sdk_package_path", help="Relative path to SDK package dir (e.g. sdk/securityinsight/azure-mgmt-securityinsight)")
-    parser.add_argument("--sdk-dir", required=True,
-                        help="Path to SDK repo (or worktree)")
+    parser.add_argument(
+        "sdk_package_path",
+        help="Relative path to SDK package dir (e.g. sdk/securityinsight/azure-mgmt-securityinsight)",
+    )
+    parser.add_argument("--sdk-dir", required=True, help="Path to SDK repo (or worktree)")
     args = parser.parse_args()
 
     sdk_repo = os.path.abspath(args.sdk_dir)
@@ -141,7 +139,10 @@ def main():
     print("Step 1: Compare code reports")
     print("=" * 60)
     result = run_cmd(
-        venv_cmd(activate, 'azpysdk breaking --source-report ./code_report_swagger.json --target-report ./code_report_typespec.json --changelog'),
+        venv_cmd(
+            activate,
+            "azpysdk breaking --source-report ./code_report_swagger.json --target-report ./code_report_typespec.json --changelog",
+        ),
         cwd=pkg_dir,
         check=False,
     )

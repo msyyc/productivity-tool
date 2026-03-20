@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from generate_swagger_sdk import strip_mgmt_prefix
@@ -47,9 +48,7 @@ class TestGenerateSwaggerMain:
     @patch("generate_swagger_sdk.os.path.isdir")
     @patch("generate_swagger_sdk.os.path.isfile")
     @patch("builtins.open", create=True)
-    def test_exits_when_no_readme_found(
-        self, mock_open, mock_isfile, mock_isdir, mock_exists, mock_glob, mock_run_cmd
-    ):
+    def test_exits_when_no_readme_found(self, mock_open, mock_isfile, mock_isdir, mock_exists, mock_glob, mock_run_cmd):
         """main() should sys.exit(1) when no readme.python.md matches the package name."""
         mock_exists.return_value = True
         mock_isdir.return_value = True
@@ -58,6 +57,7 @@ class TestGenerateSwaggerMain:
         mock_glob.return_value = ["/spec/specification/foo/readme.python.md"]
 
         from io import StringIO
+
         mock_open.return_value.__enter__ = lambda s: StringIO("unrelated content")
         mock_open.return_value.__exit__ = MagicMock(return_value=False)
 
@@ -73,9 +73,12 @@ class TestGenerateSwaggerMain:
                 "generate_swagger_sdk.py",
                 "azure-mgmt-securityinsights",
                 "abc123",
-                "--spec-dir", "/spec",
-                "--sdk-dir", "/sdk",
+                "--spec-dir",
+                "/spec",
+                "--sdk-dir",
+                "/sdk",
             ]
             from generate_swagger_sdk import main
+
             main()
         assert exc_info.value.code == 1
