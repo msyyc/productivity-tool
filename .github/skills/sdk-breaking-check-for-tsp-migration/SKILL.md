@@ -161,7 +161,7 @@ cd <sdk_worktree>
 git log -1 --format=%B
 ```
 
-If the last commit message matches the format `generated from typespec:<head_sha>` where `<head_sha>` matches the current HEAD of the spec worktree, skip regeneration and reuse the existing code report. Parse `typespec_code_report` and `head_sha` from session state (they should already be stored from the previous run).
+If the last commit message matches the format `generated from typespec:<head_sha>` where `<head_sha>` matches the current HEAD of the spec worktree, skip regeneration. Since there are no code changes, Steps 4 and 5 can also be skipped. Inform the user that the spec has not changed since the last generation and no further action is needed.
 
 **Run the bundled script** (only if cache miss):
 
