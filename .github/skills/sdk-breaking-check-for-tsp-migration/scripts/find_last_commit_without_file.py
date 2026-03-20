@@ -2,35 +2,29 @@
 Find the last commit where tspconfig.yaml did NOT exist for a given Python SDK package.
 
 Usage:
-    python find_last_commit_without_file.py <package-name>
-    python find_last_commit_without_file.py azure-mgmt-securityinsights
+    python find_last_commit_without_file.py <package-name> --spec-dir <spec-worktree>
+    python find_last_commit_without_file.py azure-mgmt-securityinsights --spec-dir /workspaces/worktrees/spec-azure-mgmt-securityinsights
 
-Uses `gh api` to query the GitHub API — no local clone needed.
+Uses local git commands on the spec worktree — no network access needed.
 """
 
 import argparse
-import base64
+import os
 import subprocess
-import json
 import sys
-import re
-import urllib.parse
 
 
 OWNER = "Azure"
 REPO = "azure-rest-api-specs"
 
 
-def gh_api(endpoint: str, paginate: bool = False) -> dict | list:
-    cmd = ["gh", "api", endpoint]
-    if paginate:
-        cmd.append("--paginate")
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    raw = result.stdout.strip()
-    if paginate and raw.startswith("["):
-        # --paginate may concatenate multiple JSON arrays; merge them
-        raw = raw.replace("]\n[", ",").replace("][", ",")
-    return json.loads(raw)
+def git_cmd(args: list[str], cwd: str) -> str:
+    result = subprocess.run(
+        ["git"] + args, capture_output=True, text=True, cwd=cwd
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
+    return result.stdout.strip()
 
 
 def extract_search_keyword(package_name: str) -> str:
@@ -43,31 +37,31 @@ def extract_search_keyword(package_name: str) -> str:
     return name
 
 
-def find_tspconfig_path(package_name: str) -> str | None:
-    """Search the spec repo for a tspconfig.yaml matching the given package name."""
+def find_tspconfig_path(package_name: str, spec_dir: str) -> str | None:
+    """Search the local spec repo for a tspconfig.yaml matching the given package name."""
     keyword = extract_search_keyword(package_name)
-    query = urllib.parse.quote(f"{keyword} filename:tspconfig.yaml path:specification repo:{OWNER}/{REPO}")
-    endpoint = f"/search/code?q={query}&per_page=20"
-    results = gh_api(endpoint)
 
-    items = results.get("items", [])
-    if not items:
+    # List all tspconfig.yaml files under specification/
+    all_files = git_cmd(["ls-files", "specification/**/tspconfig.yaml"], cwd=spec_dir)
+    if not all_files:
+        print(f"No tspconfig.yaml found in specification/")
+        return None
+
+    candidates = [f for f in all_files.splitlines() if keyword in f.lower()]
+    if not candidates:
         print(f"No tspconfig.yaml found matching keyword '{keyword}'")
         return None
 
-    if len(items) == 1:
-        path = items[0]["path"]
-        print(f"Found tspconfig.yaml: {path}")
-        return path
+    if len(candidates) == 1:
+        print(f"Found tspconfig.yaml: {candidates[0]}")
+        return candidates[0]
 
-    # Multiple matches — fetch each and check for the package name in Python emitter config
-    print(f"Found {len(items)} tspconfig.yaml candidates, checking Python emitter config...")
-    for item in items:
-        path = item["path"]
+    # Multiple matches — check file content for the package name
+    print(f"Found {len(candidates)} tspconfig.yaml candidates, checking Python emitter config...")
+    for path in candidates:
         try:
-            content_endpoint = f"/repos/{OWNER}/{REPO}/contents/{urllib.parse.quote(path, safe='/')}"
-            file_info = gh_api(content_endpoint)
-            content = base64.b64decode(file_info["content"]).decode("utf-8")
+            full_path = os.path.join(spec_dir, path)
+            content = open(full_path, encoding="utf-8").read()
             if package_name.lower() in content.lower():
                 print(f"  Matched: {path}")
                 return path
@@ -75,13 +69,11 @@ def find_tspconfig_path(package_name: str) -> str | None:
             print(f"  Warning: Failed to check {path}: {e}")
             continue
 
-    # Fallback: if no exact match, try matching with the keyword
-    for item in items:
-        path = item["path"]
+    # Fallback: match with keyword
+    for path in candidates:
         try:
-            content_endpoint = f"/repos/{OWNER}/{REPO}/contents/{urllib.parse.quote(path, safe='/')}"
-            file_info = gh_api(content_endpoint)
-            content = base64.b64decode(file_info["content"]).decode("utf-8")
+            full_path = os.path.join(spec_dir, path)
+            content = open(full_path, encoding="utf-8").read()
             if keyword in content.lower():
                 print(f"  Keyword-matched: {path}")
                 return path
@@ -93,73 +85,70 @@ def find_tspconfig_path(package_name: str) -> str | None:
     return None
 
 
-def find_first_commit_with_file(file_path: str) -> dict | None:
-    """Return the earliest commit that touched the file."""
-    endpoint = f"/repos/{OWNER}/{REPO}/commits?path={urllib.parse.quote(file_path, safe='/')}&per_page=100"
-    commits = gh_api(endpoint, paginate=True)
-    if not commits:
-        print(f"No commits found that touch {file_path}")
+def find_first_commit_with_file(file_path: str, spec_dir: str) -> tuple[str, str, str] | None:
+    """Return (sha, date, message) of the earliest commit that introduced the file."""
+    # --diff-filter=A finds only commits that Added the file; --reverse gives oldest first
+    output = git_cmd(
+        ["log", "--diff-filter=A", "--reverse", "--format=%H%n%aI%n%s", "--", file_path],
+        cwd=spec_dir,
+    )
+    if not output:
+        print(f"No commits found that added {file_path}")
         return None
-    # GitHub returns newest-first; the last element is the earliest commit
-    return commits[-1]
+    lines = output.splitlines()
+    return lines[0], lines[1], lines[2]
 
 
-def get_parent_commit(sha: str) -> str | None:
+def get_parent_commit(sha: str, spec_dir: str) -> str | None:
     """Return the first parent SHA of a given commit."""
-    endpoint = f"/repos/{OWNER}/{REPO}/commits/{sha}"
-    commit = gh_api(endpoint)
-    parents = commit.get("parents", [])
-    if parents:
-        return parents[0]["sha"]
-    return None
+    try:
+        return git_cmd(["rev-parse", f"{sha}^"], cwd=spec_dir)
+    except RuntimeError:
+        return None
 
 
-def check_tool(name):
-    """Check if a command-line tool is available."""
-    result = subprocess.run(f"{name} --version", shell=True, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"Error: '{name}' is not installed or not in PATH")
-        sys.exit(1)
+def get_commit_info(sha: str, spec_dir: str) -> tuple[str, str]:
+    """Return (date, message) for a commit."""
+    output = git_cmd(["log", "-1", "--format=%aI%n%s", sha], cwd=spec_dir)
+    lines = output.splitlines()
+    return lines[0], lines[1]
 
 
 def main():
     parser = argparse.ArgumentParser(description="Find last commit without tspconfig.yaml for a package")
     parser.add_argument("package_name", help="Full package name (e.g. azure-mgmt-securityinsights)")
+    parser.add_argument("--spec-dir", required=True, help="Path to the spec repo worktree")
     args = parser.parse_args()
 
-    check_tool("gh")
-
+    spec_dir = os.path.abspath(args.spec_dir)
     package_name = args.package_name
-    print(f"Package: {package_name}\n")
+    print(f"Package: {package_name}")
+    print(f"Spec dir: {spec_dir}\n")
 
     # Step 1: Find the tspconfig.yaml path
-    file_path = find_tspconfig_path(package_name)
+    file_path = find_tspconfig_path(package_name, spec_dir)
     if not file_path:
         sys.exit(1)
 
     # Step 2: Find the first commit that introduced the file
     print(f"\nSearching for the first commit that introduced:\n  {file_path}\n")
-    first_commit = find_first_commit_with_file(file_path)
-    if not first_commit:
+    result = find_first_commit_with_file(file_path, spec_dir)
+    if not result:
         sys.exit(1)
 
-    sha = first_commit["sha"]
-    message = first_commit["commit"]["message"].split("\n")[0]
-    date = first_commit["commit"]["committer"]["date"]
+    sha, date, message = result
     print(f"First commit with the file:")
     print(f"  SHA:     {sha}")
     print(f"  Date:    {date}")
     print(f"  Message: {message}\n")
 
     # Step 3: Get the parent commit (last commit without the file)
-    parent_sha = get_parent_commit(sha)
+    parent_sha = get_parent_commit(sha, spec_dir)
     if not parent_sha:
         print("The file was introduced in the very first commit — no parent exists.")
         sys.exit(1)
 
-    parent = gh_api(f"/repos/{OWNER}/{REPO}/commits/{parent_sha}")
-    p_message = parent["commit"]["message"].split("\n", 1)[0]
-    p_date = parent["commit"]["committer"]["date"]
+    p_date, p_message = get_commit_info(parent_sha, spec_dir)
     print(f"Last commit WITHOUT the file (parent of above):")
     print(f"  SHA:     {parent_sha}")
     print(f"  Date:    {p_date}")

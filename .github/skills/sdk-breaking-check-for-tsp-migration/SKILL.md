@@ -70,7 +70,7 @@ Find the last commit in the spec repo before `tspconfig.yaml` was added for the 
 **Run the bundled script:**
 
 ```
-python <skill-dir>/scripts/find_last_commit_without_file.py <package-name>
+python <skill-dir>/scripts/find_last_commit_without_file.py <package-name> --spec-dir <spec_worktree>
 ```
 
 **Parse the `=== SESSION_STATE ===` block** to extract:
