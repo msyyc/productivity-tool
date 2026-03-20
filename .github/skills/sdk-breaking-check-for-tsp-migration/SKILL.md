@@ -217,9 +217,27 @@ gh pr create --repo Azure/azure-rest-api-specs --head <github_username>:<spec_br
 
 The PR body should include a summary table of all breaking changes and their classification.
 
+**Create a draft SDK PR:**
+
+Always push the SDK worktree changes and create a draft PR targeting `Azure/azure-sdk-for-python` main:
+
+```
+cd <sdk_worktree>
+git add . && git commit -m "[Python] TypeSpec migration SDK output for {package_name}"
+git push <github_username> HEAD
+gh pr create --repo Azure/azure-sdk-for-python --head <github_username>:<sdk_branch> --base main --draft --title "[Python] TypeSpec migration for {package_name}" --body "<report>"
+```
+
+The PR body (`<report>`) should contain the full breaking change analysis report, including:
+- Pre-migration swagger source: `[<pre_migration_commit>](https://github.com/Azure/azure-rest-api-specs/tree/<pre_migration_commit>/<spec_folder>)` (clickable link to the exact commit used to generate the swagger SDK)
+- Summary of classifications (accepted vs mitigated)
+- List of accepted breaking changes that will remain
+- The spec PR URL (if mitigations were created)
+
 **Report to user:**
 - Summary of classifications (accepted vs mitigated)
-- The PR URL
+- The spec PR URL (if any)
+- The SDK draft PR URL
 - List of accepted breaking changes that will remain
 
 ## Rules
