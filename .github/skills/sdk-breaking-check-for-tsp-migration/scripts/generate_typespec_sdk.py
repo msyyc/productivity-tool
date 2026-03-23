@@ -13,6 +13,7 @@ import glob
 import json
 import os
 import platform
+import shutil
 import subprocess
 import sys
 
@@ -217,6 +218,10 @@ def main():
     print("\n" + "=" * 60)
     print("Step 7: Run breaking change code report")
     print("=" * 60)
+    tox_dir = os.path.join(pkg_dir, ".tox")
+    if os.path.isdir(tox_dir):
+        print(f"Removing stale .tox directory: {tox_dir}")
+        shutil.rmtree(tox_dir)
     run_cmd(
         venv_cmd(activate, "azpysdk breaking . --code-report"),
         cwd=pkg_dir,
