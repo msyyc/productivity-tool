@@ -13,6 +13,20 @@ When a service migrates its API spec from Swagger to TypeSpec, the generated Pyt
 
 Each package gets its own isolated git worktrees so the main repos stay clean.
 
+## Time Estimates
+
+Typical wall-clock times observed per step (may vary by package size and network):
+
+| Step | Typical Duration | Notes |
+|------|-----------------|-------|
+| Step 0 | ~8 min | Dominated by git worktree checkout of large repos + venv setup |
+| Step 1 | ~10 sec | Fast git log search |
+| Step 2 | ~3 min | Swagger SDK generation + code report |
+| Step 3 | ~4.5 min | TypeSpec SDK generation + code report |
+| Step 4 | ~15 sec | Report comparison + changelog generation |
+| Step 5 | ~2 min | Classification + PR creation |
+| **Total** | **~18 min** | End-to-end for a typical package |
+
 ## Prerequisites
 
 - **Python** must be installed and available on PATH.
@@ -254,7 +268,12 @@ using Azure.ClientGenerator.Core;
 cd <spec_worktree>
 git add . && git commit -m "Mitigate Python SDK breaking changes for {package}"
 git push <github_username> HEAD
-gh pr create --repo Azure/azure-rest-api-specs --head <github_username>:<spec_branch> --base main --draft --title "[Python] Mitigate breaking changes for {package_name}" --body "<body>"
+```
+
+Write the PR body to a temporary file first, then create the PR with `--body-file`:
+
+```
+gh pr create --repo Azure/azure-rest-api-specs --head <github_username>:<spec_branch> --base main --draft --title "[Python] Mitigate breaking changes for {package_name}" --body-file <temp-file>
 ```
 
 The PR body should include a summary table of all breaking changes and their classification.
@@ -267,11 +286,16 @@ Always push the SDK worktree changes and create a draft PR targeting `Azure/azur
 cd <sdk_worktree>
 git add . && git commit -m "[Python] TypeSpec migration SDK output for {package_name}"
 git push <github_username> HEAD
-gh pr create --repo Azure/azure-sdk-for-python --head <github_username>:<sdk_branch> --base main --draft --title "[Python] TypeSpec migration for {package_name}" --body "<report>"
+```
+
+Write the PR body to a temporary file first, then create the PR with `--body-file`:
+
+```
+gh pr create --repo Azure/azure-sdk-for-python --head <github_username>:<sdk_branch> --base main --draft --title "[Python] TypeSpec migration for {package_name}" --body-file <temp-file>
 ```
 
 The PR body (`<report>`) should contain the full breaking change analysis report, including:
-- Pre-migration swagger source: `[<pre_migration_commit>](https://github.com/Azure/azure-rest-api-specs/tree/<pre_migration_commit>/<spec_folder>)` (clickable link to the exact commit used to generate the swagger SDK)
+- Pre-migration swagger source: `[<pre_migration_commit>](https://github.com/Azure/azure-rest-api-specs/commit/<pre_migration_commit>)` (clickable link to the exact commit used to generate the swagger SDK — use `/commit/` URL, not `/tree/` with spec_folder, since the folder path may not exist at that commit)
 - Summary of classifications (accepted vs mitigated)
 - List of accepted breaking changes that will remain
 - The spec PR URL (if mitigations were created)
@@ -289,3 +313,5 @@ The PR body (`<report>`) should contain the full breaking change analysis report
 - If the script fails, show the full error output to the user.
 - Use forward slashes in all file paths.
 - All spec repo operations use the `spec_worktree` path, all SDK operations use the `sdk_worktree` path.
+- **PR body must be written to a temporary file** and passed via `gh pr create --body-file <file>` instead of `--body "<text>"`. Inline `--body` causes shell encoding corruption — backtick-escaped sequences like `` \`vault\` `` get interpreted as control characters (`\v` → vertical tab, `\a` → bell, `\e` → escape, etc.).
+- **Pre-migration swagger source link**: The `spec_folder` from session state is the TypeSpec folder path, which may not exist at the `pre_migration_commit` (e.g., when the migration also restructured folders). Use just the commit URL `https://github.com/Azure/azure-rest-api-specs/commit/<pre_migration_commit>` rather than a tree URL with the spec_folder path.
