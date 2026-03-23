@@ -96,10 +96,16 @@ def main():
     print("=" * 60)
     run_cmd("git checkout . && git clean -fd && git checkout origin/main && git pull origin main", cwd=rest_repo)
 
-    # Get HEAD SHA
-    result = run_cmd("git rev-parse HEAD", cwd=rest_repo)
+    # Get HEAD SHA scoped to the service folder for stable caching.
+    # Using the latest commit that touched this service (instead of repo HEAD)
+    # avoids cache invalidation when unrelated services are updated.
+    result = run_cmd(f"git log -1 --format=%H -- {spec_folder}/", cwd=rest_repo)
     head_sha = result.stdout.strip()
-    print(f"HeadSha: {head_sha}")
+    if not head_sha:
+        print("Warning: No commits found for service folder, falling back to repo HEAD")
+        result = run_cmd("git rev-parse HEAD", cwd=rest_repo)
+        head_sha = result.stdout.strip()
+    print(f"HeadSha: {head_sha} (latest commit touching {spec_folder}/)")
 
     # 2. Clean SDK repo and ensure on migration branch
     print("\n" + "=" * 60)

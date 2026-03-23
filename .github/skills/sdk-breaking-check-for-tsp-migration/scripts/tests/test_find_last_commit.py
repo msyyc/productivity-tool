@@ -15,6 +15,7 @@ from find_last_commit_without_file import (
     extract_search_keyword,
     find_earliest_tspconfig_commit,
     find_last_service_commit_before,
+    find_swagger_spec_folder,
     find_tspconfig_path,
     git_cmd,
 )
@@ -52,9 +53,7 @@ class TestGitCmd:
         mock_run.return_value = MagicMock(stdout="output\n", stderr="", returncode=0)
         result = git_cmd(["status"], cwd=SPEC_DIR)
         assert result == "output"
-        mock_run.assert_called_once_with(
-            ["git", "status"], capture_output=True, text=True, cwd=SPEC_DIR
-        )
+        mock_run.assert_called_once_with(["git", "status"], capture_output=True, text=True, cwd=SPEC_DIR)
 
     @patch("find_last_commit_without_file.subprocess.run")
     def test_raises_on_failure(self, mock_run):
@@ -70,8 +69,7 @@ class TestFindTspconfigPath:
     @patch("find_last_commit_without_file.git_cmd")
     def test_single_match(self, mock_git):
         mock_git.return_value = (
-            "specification/securityinsights/resource-manager/tspconfig.yaml\n"
-            "specification/other/tspconfig.yaml"
+            "specification/securityinsights/resource-manager/tspconfig.yaml\n" "specification/other/tspconfig.yaml"
         )
         result = find_tspconfig_path("azure-mgmt-securityinsights", SPEC_DIR)
         assert result == "specification/securityinsights/resource-manager/tspconfig.yaml"
@@ -88,7 +86,7 @@ class TestFindTspconfigPath:
         result = find_tspconfig_path("azure-mgmt-nonexistent", SPEC_DIR)
         assert result is None
 
-    @patch("builtins.open", mock_open(read_data='package-name: azure-mgmt-securityinsights'))
+    @patch("builtins.open", mock_open(read_data="package-name: azure-mgmt-securityinsights"))
     @patch("find_last_commit_without_file.git_cmd")
     def test_multiple_matches_exact_package_name(self, mock_git):
         mock_git.return_value = (
@@ -102,8 +100,7 @@ class TestFindTspconfigPath:
     @patch("find_last_commit_without_file.git_cmd")
     def test_multiple_matches_keyword_fallback(self, mock_git):
         mock_git.return_value = (
-            "specification/securityinsights/a/tspconfig.yaml\n"
-            "specification/securityinsights/b/tspconfig.yaml"
+            "specification/securityinsights/a/tspconfig.yaml\n" "specification/securityinsights/b/tspconfig.yaml"
         )
 
         call_count = {"n": 0}
@@ -203,10 +200,7 @@ class TestFindEarliestTspconfigCommit:
     def test_skips_paths_with_no_add_commits(self, mock_git):
         def side_effect(args, cwd):
             if "--name-only" in args:
-                return (
-                    "specification/svc/a/tspconfig.yaml\n"
-                    "specification/svc/b/tspconfig.yaml"
-                )
+                return "specification/svc/a/tspconfig.yaml\n" "specification/svc/b/tspconfig.yaml"
             path = args[-1]
             if "/a/" in path:
                 return ""  # no commits found for this path
@@ -216,6 +210,35 @@ class TestFindEarliestTspconfigCommit:
         result = find_earliest_tspconfig_commit("specification/svc", "/spec")
         assert result is not None
         assert result[0] == "sha_b"
+
+
+# ---------------------------------------------------------------------------
+# find_swagger_spec_folder
+# ---------------------------------------------------------------------------
+class TestFindSwaggerSpecFolder:
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_finds_resource_manager(self, mock_git):
+        # git ls-tree returns an entry when resource-manager exists
+        mock_git.return_value = "040000 tree abc123\tspecification/frontdoor/resource-manager"
+        result = find_swagger_spec_folder("pre_sha", "specification/frontdoor", "/spec")
+        assert result == "specification/frontdoor/resource-manager"
+        mock_git.assert_called_once_with(
+            ["ls-tree", "pre_sha", "specification/frontdoor/resource-manager"],
+            cwd="/spec",
+        )
+
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_falls_back_to_spec_folder(self, mock_git):
+        # git ls-tree returns empty when resource-manager doesn't exist
+        mock_git.return_value = ""
+        result = find_swagger_spec_folder("pre_sha", "specification/svc", "/spec")
+        assert result == "specification/svc"
+
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_falls_back_on_git_error(self, mock_git):
+        mock_git.side_effect = RuntimeError("git failed")
+        result = find_swagger_spec_folder("pre_sha", "specification/svc", "/spec")
+        assert result == "specification/svc"
 
 
 # ---------------------------------------------------------------------------

@@ -100,8 +100,15 @@ def find_earliest_tspconfig_commit(spec_folder: str, spec_dir: str) -> tuple[str
     """
     try:
         output = git_cmd(
-            ["log", "--diff-filter=A", "--name-only", "--format=", "--",
-             f"{spec_folder}/**/tspconfig.yaml", f"{spec_folder}/*/tspconfig.yaml"],
+            [
+                "log",
+                "--diff-filter=A",
+                "--name-only",
+                "--format=",
+                "--",
+                f"{spec_folder}/**/tspconfig.yaml",
+                f"{spec_folder}/*/tspconfig.yaml",
+            ],
             cwd=spec_dir,
         )
     except RuntimeError:
@@ -138,6 +145,23 @@ def find_earliest_tspconfig_commit(spec_folder: str, spec_dir: str) -> tuple[str
             earliest = (sha, date, message, path)
 
     return earliest
+
+
+def find_swagger_spec_folder(sha: str, spec_folder: str, spec_dir: str) -> str:
+    """Find the swagger resource-manager folder at a given commit.
+
+    At the pre-migration commit, swagger files live under
+    specification/<service>/resource-manager/. Returns that path if it exists,
+    otherwise falls back to the top-level service folder.
+    """
+    rm_folder = f"{spec_folder}/resource-manager"
+    try:
+        output = git_cmd(["ls-tree", sha, rm_folder], cwd=spec_dir)
+        if output:
+            return rm_folder
+    except RuntimeError:
+        pass
+    return spec_folder
 
 
 def find_last_service_commit_before(sha: str, spec_folder: str, spec_dir: str) -> tuple[str, str, str] | None:
@@ -213,9 +237,13 @@ def main():
     print(f"  Date:    {p_date}")
     print(f"  Message: {p_message}")
 
+    # Step 5: Find the swagger resource-manager folder at the pre-migration commit
+    # so users can browse the swagger files directly.
+    swagger_folder = find_swagger_spec_folder(p_sha, spec_folder, spec_dir)
+
     folder_path = file_path.rsplit("/", 1)[0] if "/" in file_path else file_path
     print(f"\n  Commit URL: https://github.com/{OWNER}/{REPO}/commit/{p_sha}")
-    print(f"  Folder URL: https://github.com/{OWNER}/{REPO}/tree/{p_sha}/{spec_folder}")
+    print(f"  Folder URL: https://github.com/{OWNER}/{REPO}/tree/{p_sha}/{swagger_folder}")
 
     # Output for session state parsing
     print("\n" + "=" * 60)
@@ -223,6 +251,7 @@ def main():
     print(f"tspconfig_path={file_path}")
     print(f"pre_migration_commit={p_sha}")
     print(f"spec_folder={folder_path}")
+    print(f"swagger_spec_folder={swagger_folder}")
     print("=" * 60)
 
 

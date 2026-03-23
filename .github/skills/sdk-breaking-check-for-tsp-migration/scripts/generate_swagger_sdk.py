@@ -247,6 +247,7 @@ def main():
     print("=== SESSION_STATE ===")
     print(f"sdk_package_path={sdk_pkg_path}")
     print(f"swagger_code_report={report_dst.replace(os.sep, '/')}")
+    print(f"swagger_readme_dir={target_readme_dir}")
     print("=" * 60)
     print("\nDone! Swagger SDK generated and committed.")
 

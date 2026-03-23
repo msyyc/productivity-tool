@@ -91,6 +91,7 @@ python <skill-dir>/scripts/find_last_commit_without_file.py <package-name> --spe
 - `tspconfig_path`
 - `pre_migration_commit`
 - `spec_folder`
+- `swagger_spec_folder`
 
 **Store to SQL session state:**
 
@@ -98,12 +99,13 @@ python <skill-dir>/scripts/find_last_commit_without_file.py <package-name> --spe
 INSERT OR REPLACE INTO session_state (key, value) VALUES
   ('tspconfig_path', '<parsed value>'),
   ('pre_migration_commit', '<parsed value>'),
-  ('spec_folder', '<parsed value>');
+  ('spec_folder', '<parsed value>'),
+  ('swagger_spec_folder', '<parsed value>');
 ```
 
 **Report to user:**
 - The pre-migration commit SHA and date
-- The commit URL: `https://github.com/Azure/azure-rest-api-specs/commit/<commit-sha>` (note: use `/commit/` URL, not `/tree/` with spec_folder, since the TypeSpec folder path may not exist at the pre-migration commit)
+- A browsable link to the swagger spec folder: `https://github.com/Azure/azure-rest-api-specs/tree/<pre_migration_commit>/<swagger_spec_folder>` (this points to the `resource-manager` folder which exists at the pre-migration commit, unlike the TypeSpec folder path)
 
 ### Step 2: Generate Swagger SDK and Code Report
 
@@ -127,6 +129,7 @@ The script has built-in cache detection: it searches commit history for `generat
 **Parse the `=== SESSION_STATE ===` block** to extract:
 - `sdk_package_path` — relative path to the SDK package directory
 - `swagger_code_report` — absolute path to `code_report_swagger.json`
+- `swagger_readme_dir` — relative path to the swagger readme directory (e.g., `specification/frontdoor/resource-manager`)
 
 The script automatically commits with the message `generated from swagger:<pre_migration_commit>` (used for its internal cache detection on re-runs).
 
@@ -135,12 +138,13 @@ The script automatically commits with the message `generated from swagger:<pre_m
 ```sql
 INSERT OR REPLACE INTO session_state (key, value) VALUES
   ('sdk_package_path', '<parsed value>'),
-  ('swagger_code_report', '<parsed value>');
+  ('swagger_code_report', '<parsed value>'),
+  ('swagger_readme_dir', '<parsed value>');
 ```
 
 ### Step 3: Generate TypeSpec SDK and Code Report
 
-Generate the Python SDK from the post-migration TypeSpec spec (HEAD of main) and produce a breaking change code report.
+Generate the Python SDK from the post-migration TypeSpec spec (latest main) and produce a breaking change code report.
 
 **Read session state:**
 
@@ -155,11 +159,11 @@ WHERE key IN ('package_name', 'spec_folder', 'spec_worktree', 'sdk_worktree', 'g
 python <skill-dir>/scripts/generate_typespec_sdk.py <package_name> <spec_folder> --spec-dir <spec_worktree> --sdk-dir <sdk_worktree>
 ```
 
-The script has built-in cache detection: it searches commit history for `generated from typespec:<head_sha>` and reuses the cached commit if found, skipping regeneration automatically. If the script reports a cache hit, Steps 4 and 5 can also be skipped since the spec has not changed since the last generation.
+The script checks out `origin/main` but uses the latest commit that touched the service's spec folder (not the repo HEAD) for its cache key. This avoids unnecessary regeneration when unrelated services are updated. It searches commit history for `generated from typespec:<head_sha>` and reuses the cached commit if found, skipping regeneration automatically. If the script reports a cache hit, Steps 4 and 5 can also be skipped since the spec has not changed since the last generation.
 
 **Parse the `=== SESSION_STATE ===` block** to extract:
 - `typespec_code_report` — absolute path to `code_report_typespec.json`
-- `head_sha` — HEAD commit of spec repo main branch
+- `head_sha` — latest commit SHA that touched the service's spec folder
 
 The script automatically commits with the message `generated from typespec:<head_sha>` (used for its internal cache detection on re-runs).
 
@@ -211,7 +215,8 @@ Analyze the changelog from step 4, classify each breaking change, generate mitig
 ```sql
 SELECT key, value FROM session_state
 WHERE key IN ('package_name', 'spec_folder', 'has_breaking_changes', 'sdk_package_path',
-              'changelog_path', 'spec_worktree', 'spec_branch', 'github_username');
+              'changelog_path', 'spec_worktree', 'spec_branch', 'github_username',
+              'pre_migration_commit', 'swagger_spec_folder');
 ```
 
 If `has_breaking_changes` is `false`, report that no mitigations are needed and stop.
@@ -274,7 +279,7 @@ gh pr create --repo Azure/azure-sdk-for-python --head <github_username>:<sdk_bra
 ```
 
 The PR body (`<report>`) should contain the full breaking change analysis report, including:
-- Pre-migration swagger source: `[<pre_migration_commit>](https://github.com/Azure/azure-rest-api-specs/commit/<pre_migration_commit>)` (clickable link to the exact commit used to generate the swagger SDK — use `/commit/` URL, not `/tree/` with spec_folder, since the folder path may not exist at that commit)
+- Pre-migration swagger source: `[<swagger_spec_folder> @ <pre_migration_commit[:8]>](https://github.com/Azure/azure-rest-api-specs/tree/<pre_migration_commit>/<swagger_spec_folder>)` (clickable link to browse the swagger files at the pre-migration commit)
 - Summary of classifications (accepted vs mitigated)
 - List of accepted breaking changes that will remain
 - The spec PR URL (if mitigations were created)
@@ -293,4 +298,4 @@ The PR body (`<report>`) should contain the full breaking change analysis report
 - Use forward slashes in all file paths.
 - All spec repo operations use the `spec_worktree` path, all SDK operations use the `sdk_worktree` path.
 - **PR body must be written to a temporary file** and passed via `gh pr create --body-file <file>` instead of `--body "<text>"`. Inline `--body` causes shell encoding corruption — backtick-escaped sequences like `` \`vault\` `` get interpreted as control characters (`\v` → vertical tab, `\a` → bell, `\e` → escape, etc.).
-- **Pre-migration swagger source link**: The `spec_folder` from session state is the TypeSpec folder path, which may not exist at the `pre_migration_commit` (e.g., when the migration also restructured folders). Use just the commit URL `https://github.com/Azure/azure-rest-api-specs/commit/<pre_migration_commit>` rather than a tree URL with the spec_folder path.
+- **Pre-migration swagger source link**: Use `swagger_spec_folder` from session state (output by both Step 1 and Step 2) to construct a browsable tree URL: `https://github.com/Azure/azure-rest-api-specs/tree/<pre_migration_commit>/<swagger_spec_folder>`. This points to the `resource-manager` folder which exists at the pre-migration commit, unlike the TypeSpec `spec_folder` path.
