@@ -167,9 +167,11 @@ def main():
     print("=" * 60)
     venv_path = os.path.join(sdk_worktree, ".venv")
     if os.path.isdir(venv_path):
-        print("Virtual environment already exists, skipping creation")
-    else:
-        run_cmd(f'python -m venv "{venv_path}"', cwd=sdk_worktree)
+        import shutil
+
+        print("Removing existing virtual environment to avoid stale cache...")
+        shutil.rmtree(venv_path)
+    run_cmd(f'python -m venv "{venv_path}"', cwd=sdk_worktree)
 
     # NOTE: activate.bat is Windows-specific; use bin/activate on Linux/Mac
     activate = get_activate_path(venv_path)
