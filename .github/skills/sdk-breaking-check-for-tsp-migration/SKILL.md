@@ -103,7 +103,7 @@ INSERT OR REPLACE INTO session_state (key, value) VALUES
 
 **Report to user:**
 - The pre-migration commit SHA and date
-- The spec folder URL: `https://github.com/Azure/azure-rest-api-specs/tree/<commit-sha>/<spec-folder>`
+- The commit URL: `https://github.com/Azure/azure-rest-api-specs/commit/<commit-sha>` (note: use `/commit/` URL, not `/tree/` with spec_folder, since the TypeSpec folder path may not exist at the pre-migration commit)
 
 ### Step 2: Generate Swagger SDK and Code Report
 
@@ -116,26 +116,19 @@ SELECT key, value FROM session_state
 WHERE key IN ('package_name', 'pre_migration_commit', 'spec_worktree', 'sdk_worktree');
 ```
 
-**Check for cached generation:** Before running the script, check if the SDK worktree already has a commit with the same spec commit:
-
-```
-cd <sdk_worktree>
-git log -1 --format=%B
-```
-
-If the last commit message matches the format `generated from swagger:<pre_migration_commit>`, skip regeneration and reuse the existing code report. Parse `sdk_package_path` and `swagger_code_report` from session state (they should already be stored from the previous run).
-
-**Run the bundled script** (only if cache miss):
+**Run the bundled script:**
 
 ```
 python <skill-dir>/scripts/generate_swagger_sdk.py <package_name> <pre_migration_commit> --spec-dir <spec_worktree> --sdk-dir <sdk_worktree>
 ```
 
+The script has built-in cache detection: it searches commit history for `generated from swagger:<pre_migration_commit>` and reuses the cached commit if found, skipping regeneration automatically.
+
 **Parse the `=== SESSION_STATE ===` block** to extract:
 - `sdk_package_path` — relative path to the SDK package directory
 - `swagger_code_report` — absolute path to `code_report_swagger.json`
 
-The script automatically commits with the message `generated from swagger:<pre_migration_commit>` (used for cache detection on re-runs).
+The script automatically commits with the message `generated from swagger:<pre_migration_commit>` (used for its internal cache detection on re-runs).
 
 **Store to SQL session state:**
 
@@ -156,33 +149,19 @@ SELECT key, value FROM session_state
 WHERE key IN ('package_name', 'spec_folder', 'spec_worktree', 'sdk_worktree', 'github_username');
 ```
 
-**Determine current spec HEAD:**
-
-```
-cd <spec_worktree>
-git rev-parse HEAD
-```
-
-**Check for cached generation:** Before running the script, check if the SDK worktree already has a commit with the same spec commit:
-
-```
-cd <sdk_worktree>
-git log -1 --format=%B
-```
-
-If the last commit message matches the format `generated from typespec:<head_sha>` where `<head_sha>` matches the current HEAD of the spec worktree, skip regeneration. Since there are no code changes, Steps 4 and 5 can also be skipped. Inform the user that the spec has not changed since the last generation and no further action is needed.
-
-**Run the bundled script** (only if cache miss):
+**Run the bundled script:**
 
 ```
 python <skill-dir>/scripts/generate_typespec_sdk.py <package_name> <spec_folder> --spec-dir <spec_worktree> --sdk-dir <sdk_worktree>
 ```
 
+The script has built-in cache detection: it searches commit history for `generated from typespec:<head_sha>` and reuses the cached commit if found, skipping regeneration automatically. If the script reports a cache hit, Steps 4 and 5 can also be skipped since the spec has not changed since the last generation.
+
 **Parse the `=== SESSION_STATE ===` block** to extract:
 - `typespec_code_report` — absolute path to `code_report_typespec.json`
 - `head_sha` — HEAD commit of spec repo main branch
 
-The script automatically commits with the message `generated from typespec:<head_sha>` (used for cache detection on re-runs).
+The script automatically commits with the message `generated from typespec:<head_sha>` (used for its internal cache detection on re-runs).
 
 **Store to SQL session state:**
 

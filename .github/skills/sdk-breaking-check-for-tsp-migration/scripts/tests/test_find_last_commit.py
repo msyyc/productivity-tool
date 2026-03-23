@@ -1,23 +1,26 @@
 """Tests for find_last_commit_without_file.py"""
 
-import base64
-import json
+import os
 import subprocess
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, call, mock_open, patch
 
 import pytest
 
-import sys, os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from find_last_commit_without_file import (
+    derive_service_spec_folder,
     extract_search_keyword,
-    find_first_commit_with_file,
+    find_earliest_tspconfig_commit,
+    find_last_service_commit_before,
     find_tspconfig_path,
-    get_parent_commit,
-    gh_api,
+    git_cmd,
 )
+
+
+SPEC_DIR = "/fake/spec/dir"
 
 
 # ---------------------------------------------------------------------------
@@ -41,175 +44,208 @@ class TestExtractSearchKeyword:
 
 
 # ---------------------------------------------------------------------------
-# gh_api
+# git_cmd
 # ---------------------------------------------------------------------------
-class TestGhApi:
+class TestGitCmd:
     @patch("find_last_commit_without_file.subprocess.run")
     def test_basic_call(self, mock_run):
-        mock_run.return_value = MagicMock(
-            stdout='{"login": "testuser"}',
-            stderr="",
-            returncode=0,
+        mock_run.return_value = MagicMock(stdout="output\n", stderr="", returncode=0)
+        result = git_cmd(["status"], cwd=SPEC_DIR)
+        assert result == "output"
+        mock_run.assert_called_once_with(
+            ["git", "status"], capture_output=True, text=True, cwd=SPEC_DIR
         )
-        result = gh_api("/user")
-        assert result == {"login": "testuser"}
-        mock_run.assert_called_once_with(["gh", "api", "/user"], capture_output=True, text=True, check=True)
 
     @patch("find_last_commit_without_file.subprocess.run")
-    def test_paginate_merges_arrays(self, mock_run):
-        # Simulate --paginate output: two JSON arrays concatenated
-        mock_run.return_value = MagicMock(
-            stdout='[{"a":1}]\n[{"b":2}]',
-            stderr="",
-            returncode=0,
-        )
-        result = gh_api("/some/endpoint", paginate=True)
-        assert result == [{"a": 1}, {"b": 2}]
-
-    @patch("find_last_commit_without_file.subprocess.run")
-    def test_paginate_single_array(self, mock_run):
-        mock_run.return_value = MagicMock(
-            stdout='[{"a":1},{"b":2}]',
-            stderr="",
-            returncode=0,
-        )
-        result = gh_api("/some/endpoint", paginate=True)
-        assert result == [{"a": 1}, {"b": 2}]
-
-    @patch("find_last_commit_without_file.subprocess.run")
-    def test_paginate_adjacent_brackets(self, mock_run):
-        # No newline between arrays
-        mock_run.return_value = MagicMock(
-            stdout='[{"a":1}][{"b":2}]',
-            stderr="",
-            returncode=0,
-        )
-        result = gh_api("/some/endpoint", paginate=True)
-        assert result == [{"a": 1}, {"b": 2}]
+    def test_raises_on_failure(self, mock_run):
+        mock_run.return_value = MagicMock(stdout="", stderr="fatal: error", returncode=1)
+        with pytest.raises(RuntimeError, match="failed"):
+            git_cmd(["bad-command"], cwd=SPEC_DIR)
 
 
 # ---------------------------------------------------------------------------
 # find_tspconfig_path
 # ---------------------------------------------------------------------------
 class TestFindTspconfigPath:
-    @patch("find_last_commit_without_file.gh_api")
-    def test_single_match(self, mock_gh_api):
-        mock_gh_api.return_value = {
-            "items": [{"path": "specification/securityinsights/resource-manager/tspconfig.yaml"}]
-        }
-        result = find_tspconfig_path("azure-mgmt-securityinsights")
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_single_match(self, mock_git):
+        mock_git.return_value = (
+            "specification/securityinsights/resource-manager/tspconfig.yaml\n"
+            "specification/other/tspconfig.yaml"
+        )
+        result = find_tspconfig_path("azure-mgmt-securityinsights", SPEC_DIR)
         assert result == "specification/securityinsights/resource-manager/tspconfig.yaml"
 
-    @patch("find_last_commit_without_file.gh_api")
-    def test_no_match(self, mock_gh_api):
-        mock_gh_api.return_value = {"items": []}
-        result = find_tspconfig_path("azure-mgmt-nonexistent")
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_no_files_found(self, mock_git):
+        mock_git.return_value = ""
+        result = find_tspconfig_path("azure-mgmt-nonexistent", SPEC_DIR)
         assert result is None
 
-    @patch("find_last_commit_without_file.gh_api")
-    def test_multiple_matches_exact_package_name(self, mock_gh_api):
-        tspconfig_content = base64.b64encode(
-            b'options:\n  "@azure-tools/typespec-python":\n    package-name: azure-mgmt-securityinsights'
-        ).decode()
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_no_keyword_match(self, mock_git):
+        mock_git.return_value = "specification/compute/tspconfig.yaml"
+        result = find_tspconfig_path("azure-mgmt-nonexistent", SPEC_DIR)
+        assert result is None
 
-        def side_effect(endpoint, **kwargs):
-            if "/search/code" in endpoint:
-                return {
-                    "items": [
-                        {"path": "specification/security/tspconfig.yaml"},
-                        {"path": "specification/securityinsights/tspconfig.yaml"},
-                    ]
-                }
-            if "securityinsights/tspconfig.yaml" in endpoint:
-                return {"content": tspconfig_content}
-            # First candidate doesn't match
-            return {"content": base64.b64encode(b"unrelated content").decode()}
+    @patch("builtins.open", mock_open(read_data='package-name: azure-mgmt-securityinsights'))
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_multiple_matches_exact_package_name(self, mock_git):
+        mock_git.return_value = (
+            "specification/security/securityinsights/tspconfig.yaml\n"
+            "specification/securityinsights/resource-manager/tspconfig.yaml"
+        )
+        result = find_tspconfig_path("azure-mgmt-securityinsights", SPEC_DIR)
+        # Both match keyword; first one checked for exact package name match in content
+        assert result == "specification/security/securityinsights/tspconfig.yaml"
 
-        mock_gh_api.side_effect = side_effect
-        result = find_tspconfig_path("azure-mgmt-securityinsights")
-        assert result == "specification/securityinsights/tspconfig.yaml"
-
-    @patch("find_last_commit_without_file.gh_api")
-    def test_multiple_matches_keyword_fallback(self, mock_gh_api):
-        keyword_content = base64.b64encode(b"contains securityinsights keyword").decode()
-        no_match_content = base64.b64encode(b"no match here").decode()
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_multiple_matches_keyword_fallback(self, mock_git):
+        mock_git.return_value = (
+            "specification/securityinsights/a/tspconfig.yaml\n"
+            "specification/securityinsights/b/tspconfig.yaml"
+        )
 
         call_count = {"n": 0}
 
-        def side_effect(endpoint, **kwargs):
-            if "/search/code" in endpoint:
-                return {
-                    "items": [
-                        {"path": "specification/a/tspconfig.yaml"},
-                        {"path": "specification/b/tspconfig.yaml"},
-                    ]
-                }
+        def fake_open(path, *args, **kwargs):
             call_count["n"] += 1
-            # First pass (exact match): neither matches
-            # Second pass (keyword): second matches
+            m = MagicMock()
+            # First pass (exact match): neither contains the full package name
+            # Second pass (keyword): first contains the keyword
             if call_count["n"] <= 2:
-                return {"content": no_match_content}
-            if "specification/a" in endpoint:
-                return {"content": no_match_content}
-            return {"content": keyword_content}
+                m.read.return_value = "unrelated content"
+            else:
+                m.read.return_value = "contains securityinsights keyword"
+            m.__enter__ = lambda s: m
+            m.__exit__ = MagicMock(return_value=False)
+            return m
 
-        mock_gh_api.side_effect = side_effect
-        result = find_tspconfig_path("azure-mgmt-securityinsights")
-        assert result == "specification/b/tspconfig.yaml"
+        with patch("builtins.open", side_effect=fake_open):
+            result = find_tspconfig_path("azure-mgmt-securityinsights", SPEC_DIR)
+        assert result == "specification/securityinsights/a/tspconfig.yaml"
 
 
 # ---------------------------------------------------------------------------
-# find_first_commit_with_file
+# derive_service_spec_folder
 # ---------------------------------------------------------------------------
-class TestFindFirstCommitWithFile:
-    @patch("find_last_commit_without_file.gh_api")
-    def test_returns_earliest_commit(self, mock_gh_api):
-        commits = [
-            {"sha": "newest", "commit": {"message": "latest"}},
-            {"sha": "middle", "commit": {"message": "middle"}},
-            {"sha": "oldest", "commit": {"message": "first"}},
-        ]
-        mock_gh_api.return_value = commits
-        result = find_first_commit_with_file("specification/foo/tspconfig.yaml")
-        assert result["sha"] == "oldest"
+class TestDeriveServiceSpecFolder:
+    def test_extracts_top_level_folder(self):
+        path = "specification/frontdoor/resource-manager/Microsoft.Network/FrontDoor/tspconfig.yaml"
+        assert derive_service_spec_folder(path) == "specification/frontdoor"
 
-    @patch("find_last_commit_without_file.gh_api")
-    def test_no_commits(self, mock_gh_api):
-        mock_gh_api.return_value = []
-        result = find_first_commit_with_file("specification/foo/tspconfig.yaml")
+    def test_simple_path(self):
+        path = "specification/securityinsights/Securityinsights.Management/tspconfig.yaml"
+        assert derive_service_spec_folder(path) == "specification/securityinsights"
+
+    def test_handles_backslashes(self):
+        path = "specification\\compute\\resource-manager\\tspconfig.yaml"
+        assert derive_service_spec_folder(path) == "specification/compute"
+
+
+# ---------------------------------------------------------------------------
+# find_earliest_tspconfig_commit
+# ---------------------------------------------------------------------------
+class TestFindEarliestTspconfigCommit:
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_finds_earliest_across_multiple_paths(self, mock_git):
+        # First call: git log --diff-filter=A --name-only to discover paths
+        # Subsequent calls: git log --diff-filter=A --reverse for each path
+        def side_effect(args, cwd):
+            if "--name-only" in args:
+                return (
+                    "specification/svc/Old.Management/tspconfig.yaml\n"
+                    "specification/svc/New.Management/tspconfig.yaml"
+                )
+            path = args[-1]
+            if "Old.Management" in path:
+                return "old_sha\n2025-01-01T00:00:00+00:00\nold migration"
+            else:
+                return "new_sha\n2026-03-01T00:00:00+00:00\nfolder restructure"
+
+        mock_git.side_effect = side_effect
+        result = find_earliest_tspconfig_commit("specification/svc", "/spec")
+        assert result is not None
+        sha, date, message, path = result
+        assert sha == "old_sha"
+        assert "old migration" in message
+        assert "Old.Management" in path
+
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_single_path(self, mock_git):
+        def side_effect(args, cwd):
+            if "--name-only" in args:
+                return "specification/svc/Mgmt/tspconfig.yaml"
+            return "abc123\n2025-06-15T00:00:00+00:00\nmigration commit"
+
+        mock_git.side_effect = side_effect
+        result = find_earliest_tspconfig_commit("specification/svc", "/spec")
+        assert result == (
+            "abc123",
+            "2025-06-15T00:00:00+00:00",
+            "migration commit",
+            "specification/svc/Mgmt/tspconfig.yaml",
+        )
+
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_no_tspconfig_found(self, mock_git):
+        mock_git.return_value = ""
+        result = find_earliest_tspconfig_commit("specification/svc", "/spec")
         assert result is None
 
-    @patch("find_last_commit_without_file.gh_api")
-    def test_single_commit(self, mock_gh_api):
-        commits = [{"sha": "only", "commit": {"message": "only commit"}}]
-        mock_gh_api.return_value = commits
-        result = find_first_commit_with_file("specification/foo/tspconfig.yaml")
-        assert result["sha"] == "only"
-
-
-# ---------------------------------------------------------------------------
-# get_parent_commit
-# ---------------------------------------------------------------------------
-class TestGetParentCommit:
-    @patch("find_last_commit_without_file.gh_api")
-    def test_returns_first_parent(self, mock_gh_api):
-        mock_gh_api.return_value = {
-            "parents": [
-                {"sha": "parent1"},
-                {"sha": "parent2"},
-            ]
-        }
-        result = get_parent_commit("abc123")
-        assert result == "parent1"
-
-    @patch("find_last_commit_without_file.gh_api")
-    def test_no_parents(self, mock_gh_api):
-        mock_gh_api.return_value = {"parents": []}
-        result = get_parent_commit("abc123")
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_git_error_returns_none(self, mock_git):
+        mock_git.side_effect = RuntimeError("git failed")
+        result = find_earliest_tspconfig_commit("specification/svc", "/spec")
         assert result is None
 
-    @patch("find_last_commit_without_file.gh_api")
-    def test_missing_parents_key(self, mock_gh_api):
-        mock_gh_api.return_value = {}
-        result = get_parent_commit("abc123")
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_skips_paths_with_no_add_commits(self, mock_git):
+        def side_effect(args, cwd):
+            if "--name-only" in args:
+                return (
+                    "specification/svc/a/tspconfig.yaml\n"
+                    "specification/svc/b/tspconfig.yaml"
+                )
+            path = args[-1]
+            if "/a/" in path:
+                return ""  # no commits found for this path
+            return "sha_b\n2025-03-01T00:00:00+00:00\nmigration b"
+
+        mock_git.side_effect = side_effect
+        result = find_earliest_tspconfig_commit("specification/svc", "/spec")
+        assert result is not None
+        assert result[0] == "sha_b"
+
+
+# ---------------------------------------------------------------------------
+# find_last_service_commit_before
+# ---------------------------------------------------------------------------
+class TestFindLastServiceCommitBefore:
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_finds_last_service_commit(self, mock_git):
+        mock_git.return_value = "pre_sha\n2025-10-21T10:00:00+00:00\nAdd new api version"
+        result = find_last_service_commit_before("migration_sha", "specification/frontdoor", "/spec")
+        assert result == ("pre_sha", "2025-10-21T10:00:00+00:00", "Add new api version")
+        mock_git.assert_called_once_with(
+            ["log", "-1", "--format=%H%n%aI%n%s", "migration_sha^", "--", "specification/frontdoor/"],
+            cwd="/spec",
+        )
+
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_no_prior_commits(self, mock_git):
+        mock_git.return_value = ""
+        result = find_last_service_commit_before("sha", "specification/svc", "/spec")
+        assert result is None
+
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_git_error_returns_none(self, mock_git):
+        mock_git.side_effect = RuntimeError("no parent")
+        result = find_last_service_commit_before("sha", "specification/svc", "/spec")
+        assert result is None
+
+    @patch("find_last_commit_without_file.git_cmd")
+    def test_incomplete_output_returns_none(self, mock_git):
+        mock_git.return_value = "sha_only"  # missing date and message lines
+        result = find_last_service_commit_before("sha", "specification/svc", "/spec")
         assert result is None

@@ -83,33 +83,84 @@ def find_tspconfig_path(package_name: str, spec_dir: str) -> str | None:
     return None
 
 
-def find_first_commit_with_file(file_path: str, spec_dir: str) -> tuple[str, str, str] | None:
-    """Return (sha, date, message) of the earliest commit that introduced the file."""
-    # --diff-filter=A finds only commits that Added the file; --reverse gives oldest first
-    output = git_cmd(
-        ["log", "--diff-filter=A", "--reverse", "--format=%H%n%aI%n%s", "--", file_path],
-        cwd=spec_dir,
-    )
-    if not output:
-        print(f"No commits found that added {file_path}")
-        return None
-    lines = output.splitlines()
-    return lines[0], lines[1], lines[2]
+def derive_service_spec_folder(tspconfig_path: str) -> str:
+    """Extract the top-level specification folder (e.g., specification/frontdoor)."""
+    parts = tspconfig_path.replace("\\", "/").split("/")
+    return f"{parts[0]}/{parts[1]}"
 
 
-def get_parent_commit(sha: str, spec_dir: str) -> str | None:
-    """Return the first parent SHA of a given commit."""
+def find_earliest_tspconfig_commit(spec_folder: str, spec_dir: str) -> tuple[str, str, str, str] | None:
+    """Find the earliest commit adding any tspconfig.yaml under the spec folder.
+
+    Searches git history for ALL tspconfig.yaml paths ever committed under the
+    service folder (including paths that were later renamed/moved), then returns
+    the earliest addition.
+
+    Returns (sha, date, message, file_path) or None.
+    """
     try:
-        return git_cmd(["rev-parse", f"{sha}^"], cwd=spec_dir)
+        output = git_cmd(
+            ["log", "--diff-filter=A", "--name-only", "--format=", "--",
+             f"{spec_folder}/**/tspconfig.yaml", f"{spec_folder}/*/tspconfig.yaml"],
+            cwd=spec_dir,
+        )
     except RuntimeError:
         return None
 
+    if not output:
+        return None
 
-def get_commit_info(sha: str, spec_dir: str) -> tuple[str, str]:
-    """Return (date, message) for a commit."""
-    output = git_cmd(["log", "-1", "--format=%aI%n%s", sha], cwd=spec_dir)
+    paths = sorted(set(line.strip() for line in output.splitlines() if line.strip()))
+    if not paths:
+        return None
+
+    print(f"  Found {len(paths)} historical tspconfig.yaml path(s):")
+    for p in paths:
+        print(f"    {p}")
+
+    # For each path, find the earliest commit that added it
+    earliest = None
+    for path in paths:
+        try:
+            result = git_cmd(
+                ["log", "--diff-filter=A", "--reverse", "--format=%H%n%aI%n%s", "--", path],
+                cwd=spec_dir,
+            )
+        except RuntimeError:
+            continue
+        if not result:
+            continue
+        lines = result.splitlines()
+        if len(lines) < 3:
+            continue
+        sha, date, message = lines[0], lines[1], lines[2]
+        if earliest is None or date < earliest[1]:
+            earliest = (sha, date, message, path)
+
+    return earliest
+
+
+def find_last_service_commit_before(sha: str, spec_folder: str, spec_dir: str) -> tuple[str, str, str] | None:
+    """Find the last commit that touched the service spec folder before the given commit.
+
+    This gives the true "last commit without tspconfig.yaml" for the service,
+    rather than just the git parent (which may be an unrelated commit).
+
+    Returns (sha, date, message) or None.
+    """
+    try:
+        output = git_cmd(
+            ["log", "-1", "--format=%H%n%aI%n%s", f"{sha}^", "--", f"{spec_folder}/"],
+            cwd=spec_dir,
+        )
+    except RuntimeError:
+        return None
+    if not output:
+        return None
     lines = output.splitlines()
-    return lines[0], lines[1]
+    if len(lines) < 3:
+        return None
+    return lines[0], lines[1], lines[2]
 
 
 def main():
@@ -123,43 +174,54 @@ def main():
     print(f"Package: {package_name}")
     print(f"Spec dir: {spec_dir}\n")
 
-    # Step 1: Find the tspconfig.yaml path
+    # Step 1: Find the current tspconfig.yaml path (for output metadata)
     file_path = find_tspconfig_path(package_name, spec_dir)
     if not file_path:
         sys.exit(1)
 
-    # Step 2: Find the first commit that introduced the file
-    print(f"\nSearching for the first commit that introduced:\n  {file_path}\n")
-    result = find_first_commit_with_file(file_path, spec_dir)
+    # Step 2: Derive the service's top-level spec folder
+    spec_folder = derive_service_spec_folder(file_path)
+    print(f"\nService spec folder: {spec_folder}")
+
+    # Step 3: Find the earliest commit that introduced ANY tspconfig.yaml for this service.
+    # This searches all historical paths, not just the current one (which may have
+    # been created by a folder restructure rather than the original migration).
+    print(f"\nSearching git history for tspconfig.yaml additions under {spec_folder}/...")
+    migration = find_earliest_tspconfig_commit(spec_folder, spec_dir)
+    if not migration:
+        print(f"No commits found that added tspconfig.yaml under {spec_folder}/")
+        sys.exit(1)
+
+    m_sha, m_date, m_message, m_path = migration
+    print(f"\nEarliest migration commit (first tspconfig.yaml addition):")
+    print(f"  SHA:     {m_sha}")
+    print(f"  Date:    {m_date}")
+    print(f"  Message: {m_message}")
+    print(f"  Path:    {m_path}\n")
+
+    # Step 4: Find the last commit touching this service's spec folder BEFORE
+    # the migration.  This is the true "last commit without tspconfig.yaml" for
+    # the service — not just the git parent (which may be unrelated).
+    result = find_last_service_commit_before(m_sha, spec_folder, spec_dir)
     if not result:
+        print("No prior commits found touching the service spec folder.")
         sys.exit(1)
 
-    sha, date, message = result
-    print(f"First commit with the file:")
-    print(f"  SHA:     {sha}")
-    print(f"  Date:    {date}")
-    print(f"  Message: {message}\n")
-
-    # Step 3: Get the parent commit (last commit without the file)
-    parent_sha = get_parent_commit(sha, spec_dir)
-    if not parent_sha:
-        print("The file was introduced in the very first commit — no parent exists.")
-        sys.exit(1)
-
-    p_date, p_message = get_commit_info(parent_sha, spec_dir)
-    print(f"Last commit WITHOUT the file (parent of above):")
-    print(f"  SHA:     {parent_sha}")
+    p_sha, p_date, p_message = result
+    print(f"Last commit WITHOUT tspconfig.yaml (last service commit before migration):")
+    print(f"  SHA:     {p_sha}")
     print(f"  Date:    {p_date}")
     print(f"  Message: {p_message}")
+
     folder_path = file_path.rsplit("/", 1)[0] if "/" in file_path else file_path
-    print(f"\n  Commit URL: https://github.com/{OWNER}/{REPO}/commit/{parent_sha}")
-    print(f"  Folder URL: https://github.com/{OWNER}/{REPO}/tree/{parent_sha}/{folder_path}")
+    print(f"\n  Commit URL: https://github.com/{OWNER}/{REPO}/commit/{p_sha}")
+    print(f"  Folder URL: https://github.com/{OWNER}/{REPO}/tree/{p_sha}/{spec_folder}")
 
     # Output for session state parsing
     print("\n" + "=" * 60)
     print("=== SESSION_STATE ===")
     print(f"tspconfig_path={file_path}")
-    print(f"pre_migration_commit={parent_sha}")
+    print(f"pre_migration_commit={p_sha}")
     print(f"spec_folder={folder_path}")
     print("=" * 60)
 

@@ -62,10 +62,11 @@ class TestGenerateSwaggerMain:
         mock_open.return_value.__exit__ = MagicMock(return_value=False)
 
         mock_run_cmd.side_effect = [
-            MagicMock(stdout="", returncode=0),  # git checkout
-            MagicMock(stdout="main", returncode=0),  # git rev-parse
-            MagicMock(stdout="", returncode=0),  # git fetch
-            MagicMock(stdout="", returncode=0),  # git checkout -B
+            MagicMock(stdout="", returncode=0),  # git checkout . && git clean -fd && git checkout {commit}
+            MagicMock(stdout="main", returncode=0),  # git rev-parse --abbrev-ref HEAD
+            MagicMock(stdout="", returncode=0),  # git fetch origin main
+            MagicMock(stdout="", returncode=0),  # git checkout -B {branch}
+            MagicMock(stdout="", returncode=0),  # git log --oneline --grep (cache check, no hit)
         ]
 
         with pytest.raises(SystemExit) as exc_info:
