@@ -109,6 +109,31 @@ def main():
     else:
         print(f"Already on branch '{branch_name}'")
 
+    # Cache check: skip generation if matching commit already exists
+    commit_msg = f"generated from swagger:{commit}"
+    print("\n" + "=" * 60)
+    print(f"Cache check: searching for '{commit_msg}'")
+    print("=" * 60)
+    result = run_cmd(f'git log --oneline --grep="{commit_msg}"', cwd=sdk_repo, check=False)
+    if result.stdout.strip():
+        cached_line = result.stdout.strip().split("\n")[0]
+        cached_sha = cached_line.split()[0]
+        print(f"Cache hit! Found: {cached_line}")
+        run_cmd(f"git reset --hard {cached_sha}", cwd=sdk_repo)
+
+        reports = glob.glob(os.path.join(sdk_repo, "**", "code_report_swagger.json"), recursive=True)
+        if reports:
+            report_dst = reports[0]
+            sdk_pkg_path = os.path.relpath(os.path.dirname(report_dst), sdk_repo).replace("\\", "/")
+            print("\n" + "=" * 60)
+            print("=== SESSION_STATE ===")
+            print(f"sdk_package_path={sdk_pkg_path}")
+            print(f"swagger_code_report={report_dst.replace(os.sep, '/')}")
+            print("=" * 60)
+            print("\nDone! Using cached swagger generation.")
+            return
+        print("Warning: report not found in cached commit, regenerating...")
+
     # 3. Find readme.python.md containing the package name
     print("\n" + "=" * 60)
     print(f"Step 3: Search readme.python.md for '{package_name}'")
@@ -201,7 +226,7 @@ def main():
     report_src = os.path.join(pkg_dir, "code_report.json")
     report_dst = os.path.join(pkg_dir, "code_report_swagger.json")
     if os.path.isfile(report_src):
-        os.rename(report_src, report_dst)
+        os.replace(report_src, report_dst)
         print(f"Renamed: {report_dst}")
     else:
         print(f"Warning: code_report.json not found at {report_src}")

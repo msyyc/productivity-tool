@@ -9,6 +9,7 @@ Example:
 """
 
 import argparse
+import glob
 import json
 import os
 import platform
@@ -113,6 +114,30 @@ def main():
     else:
         print(f"Already on branch '{branch_name}'")
 
+    # Cache check: skip generation if matching commit already exists
+    commit_msg = f"generated from typespec:{head_sha}"
+    print("\n" + "=" * 60)
+    print(f"Cache check: searching for '{commit_msg}'")
+    print("=" * 60)
+    result = run_cmd(f'git log --oneline --grep="{commit_msg}"', cwd=sdk_repo, check=False)
+    if result.stdout.strip():
+        cached_line = result.stdout.strip().split("\n")[0]
+        cached_sha = cached_line.split()[0]
+        print(f"Cache hit! Found: {cached_line}")
+        run_cmd(f"git reset --hard {cached_sha}", cwd=sdk_repo)
+
+        reports = glob.glob(os.path.join(sdk_repo, "**", "code_report_typespec.json"), recursive=True)
+        if reports:
+            report_dst = reports[0]
+            print("\n" + "=" * 60)
+            print("=== SESSION_STATE ===")
+            print(f"typespec_code_report={report_dst.replace(os.sep, '/')}")
+            print(f"head_sha={head_sha}")
+            print("=" * 60)
+            print("\nDone! Using cached TypeSpec generation.")
+            return
+        print("Warning: report not found in cached commit, regenerating...")
+
     # 3. Create generate_input_typespec.json
     print("\n" + "=" * 60)
     print("Step 3: Create generate_input_typespec.json")
@@ -198,7 +223,7 @@ def main():
     report_src = os.path.join(pkg_dir, "code_report.json")
     report_dst = os.path.join(pkg_dir, "code_report_typespec.json")
     if os.path.isfile(report_src):
-        os.rename(report_src, report_dst)
+        os.replace(report_src, report_dst)
         print(f"Renamed: {report_dst}")
     else:
         print(f"Warning: code_report.json not found at {report_src}")
