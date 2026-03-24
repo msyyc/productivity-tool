@@ -17,7 +17,7 @@ Trigger the Azure DevOps "SDK Generation - Python" pipeline for a package, wait 
 
 - **SDK package name** (required): e.g., `azure-mgmt-frontdoor`
 - **api-version** (optional): e.g., `2020-01-01`. If not provided, auto-detected from `main.tsp` in Step 1.
-- **release-type** (optional): `beta` or `stable` (default: `beta`)
+- **release-type** (optional): `beta` or `stable`. If not provided, inferred from api-version: `beta` if it contains `preview`, otherwise `stable`.
 
 ## Workflow
 
@@ -54,7 +54,7 @@ az pipelines run --id 7423 --org https://dev.azure.com/azure-sdk --project inter
 ```
 
 - `ApiVersion` is required. Use the user-provided value, or the auto-detected value from Step 1.
-- If `release-type` is not provided, default to `beta`.
+- If `release-type` is not provided, infer it from the API version: if the version string contains `preview`, use `beta`; otherwise use `stable`.
 
 **Parse the JSON output** to extract:
 - `id` — the build ID
