@@ -141,6 +141,9 @@ def main():
     print("=" * 60)
     if os.path.isdir(spec_worktree):
         print(f"Worktree already exists at {spec_worktree}, skipping creation")
+        run_cmd(
+            "git checkout . && git clean -fd && git checkout origin/main && git pull origin main", cwd=spec_worktree
+        )
     else:
         run_cmd("git fetch origin main", cwd=spec_repo)
         run_cmd(

@@ -91,15 +91,9 @@ def main():
     print(f"SDK repo:      {sdk_repo}")
     print(f"Commit:        {commit}")
 
-    # 1. Clean REST repo and checkout pre-migration commit
+    # 1. Setup SDK repo branch
     print("\n" + "=" * 60)
-    print("Step 1: Clean REST repo -> checkout pre-migration commit")
-    print("=" * 60)
-    run_cmd(f"git checkout . && git clean -fd && git checkout {commit}", cwd=rest_repo)
-
-    # 2. Setup SDK repo branch
-    print("\n" + "=" * 60)
-    print("Step 2: Setup SDK repo branch")
+    print("Step 1: Setup SDK repo branch")
     print("=" * 60)
     result = run_cmd("git rev-parse --abbrev-ref HEAD", cwd=sdk_repo)
     current_branch = result.stdout.strip()
@@ -111,6 +105,7 @@ def main():
         print(f"Already on branch '{branch_name}'")
 
     # Cache check: skip generation if matching commit already exists
+    # (done BEFORE spec repo checkout to avoid slow git operations on cache hit)
     commit_msg = f"generated from swagger:{commit}"
     print("\n" + "=" * 60)
     print(f"Cache check: searching for '{commit_msg}'")
@@ -134,6 +129,12 @@ def main():
             print("\nDone! Using cached swagger generation.")
             return
         print("Warning: report not found in cached commit, regenerating...")
+
+    # 2. Clean REST repo and checkout pre-migration commit
+    print("\n" + "=" * 60)
+    print("Step 2: Clean REST repo -> checkout pre-migration commit")
+    print("=" * 60)
+    run_cmd(f"git checkout . && git clean -fd && git checkout {commit}", cwd=rest_repo)
 
     # 3. Find readme.python.md containing the package name
     print("\n" + "=" * 60)
