@@ -16,7 +16,7 @@ Trigger the Azure DevOps "SDK Generation - Python" pipeline for a package, wait 
 ## Input
 
 - **SDK package name** (required): e.g., `azure-mgmt-frontdoor`
-- **api-version** (optional): e.g., `2020-01-01`
+- **api-version** (optional): e.g., `2020-01-01`. If not provided, auto-detected from `main.tsp` in Step 1.
 - **release-type** (optional): `beta` or `stable` (default: `beta`)
 
 ## Workflow
@@ -29,7 +29,11 @@ Run the bundled script to locate the `tspconfig.yaml` for the package:
 python <skill-dir>/scripts/find_config_path.py <package-name> --spec-dir <spec-repo-path>
 ```
 
-**Parse the `=== SESSION_STATE ===` block** to extract `config_path`.
+**Parse the `=== SESSION_STATE ===` block** to extract:
+- `config_path` — relative path to `tspconfig.yaml`
+- `api_version` — latest API version extracted from `main.tsp` (e.g., `2025-10-01`)
+
+If the user provided an explicit api-version, use that instead of the auto-detected one.
 
 **Store to SQL session state:**
 
@@ -37,7 +41,8 @@ python <skill-dir>/scripts/find_config_path.py <package-name> --spec-dir <spec-r
 CREATE TABLE IF NOT EXISTS session_state (key TEXT PRIMARY KEY, value TEXT);
 INSERT OR REPLACE INTO session_state (key, value) VALUES
   ('package_name', '<package-name>'),
-  ('config_path', '<parsed config_path>');
+  ('config_path', '<parsed config_path>'),
+  ('api_version', '<user-provided or parsed api_version>');
 ```
 
 ### Step 2: Trigger Pipeline
@@ -48,7 +53,7 @@ Trigger the "SDK Generation - Python" pipeline (definitionId=7423):
 az pipelines run --id 7423 --org https://dev.azure.com/azure-sdk --project internal --branch main --parameters ConfigPath=<config_path> SdkReleaseType=<release_type> CreatePullRequest=true ApiVersion=<api_version> --output json
 ```
 
-- If `api-version` is not provided, omit the `ApiVersion=` parameter entirely.
+- `ApiVersion` is required. Use the user-provided value, or the auto-detected value from Step 1.
 - If `release-type` is not provided, default to `beta`.
 
 **Parse the JSON output** to extract:
@@ -121,7 +126,12 @@ git fetch origin main
 git worktree add -B sdk-<package_name> <worktree_path> origin/main
 ```
 
-If the worktree already exists, skip creation.
+**If the worktree already exists**, clean it before checkout:
+
+```
+cd <worktree_path>
+git checkout . && git clean -fd
+```
 
 **Checkout the SDK PR** in the worktree:
 
