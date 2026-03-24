@@ -115,11 +115,17 @@ def main():
         cached_line = result.stdout.strip().split("\n")[0]
         cached_sha = cached_line.split()[0]
         print(f"Cache hit! Found: {cached_line}")
-        run_cmd(f"git reset --hard {cached_sha}", cwd=sdk_repo)
 
-        reports = glob.glob(os.path.join(sdk_repo, "**", "code_report_swagger.json"), recursive=True)
-        if reports:
-            report_dst = reports[0]
+        # Extract only the report file from the cached commit (no git reset needed)
+        file_list = run_cmd(f"git diff-tree --no-commit-id -r --name-only {cached_sha}", cwd=sdk_repo)
+        report_files = [f for f in file_list.stdout.strip().split("\n") if f.endswith("code_report_swagger.json")]
+        if report_files:
+            report_rel = report_files[0].replace("/", os.sep)
+            report_dst = os.path.join(sdk_repo, report_rel)
+            os.makedirs(os.path.dirname(report_dst), exist_ok=True)
+            file_content = run_cmd(f"git show {cached_sha}:{report_files[0]}", cwd=sdk_repo)
+            with open(report_dst, "w", encoding="utf-8") as f:
+                f.write(file_content.stdout)
             sdk_pkg_path = os.path.relpath(os.path.dirname(report_dst), sdk_repo).replace("\\", "/")
             print("\n" + "=" * 60)
             print("=== SESSION_STATE ===")
