@@ -1,6 +1,6 @@
 ---
 name: sdk-breaking-check-for-tsp-migration
-description: Use when the user mentions checking breaking changes for a TypeSpec migration with an SDK package name, or asks to compare swagger vs typespec SDK output for a service.
+description: Use when the user mentions checking breaking changes for a TypeSpec migration with an SDK package name or a spec PR URL, or asks to compare swagger vs typespec SDK output for a service.
 ---
 
 # SDK Breaking Change Check for TypeSpec Migration
@@ -12,6 +12,15 @@ Check for breaking changes when a service migrates from Swagger to TypeSpec by c
 When a service migrates its API spec from Swagger to TypeSpec, the generated Python SDK may have unintended breaking changes. This skill orchestrates a multi-step workflow to detect and mitigate those breaking changes.
 
 Each package gets its own isolated git worktrees so the main repos stay clean.
+
+## Input Modes
+
+The skill supports two input modes:
+
+1. **Package name** (e.g., `azure-mgmt-securityinsights`): The existing flow — user provides the SDK package name directly.
+2. **Spec PR URL** (e.g., `https://github.com/Azure/azure-rest-api-specs/pull/40023`): The package name is extracted automatically from the PR's changed `tspconfig.yaml`. Steps 3 and 5 are adjusted to work against the PR's head commit and source branch.
+
+When a PR URL is provided, run the **Pre-Step** before Step 0 to extract the package name and PR metadata.
 
 ## Time Estimates
 
@@ -41,6 +50,37 @@ Typical wall-clock times observed per step (may vary by package size and network
 ## Workflow (Multi-Step)
 
 This is a long-running workflow. Execute only the step the user requests, then stop and report results.
+
+### Pre-Step: Extract Package from PR (PR mode only)
+
+When the user provides a spec PR URL instead of a package name, run this step first to extract the package name and PR metadata. This step uses `gh` CLI only — no worktree or venv needed.
+
+**Input:** Spec PR URL (e.g., `https://github.com/Azure/azure-rest-api-specs/pull/40023`) or PR number
+
+**Run the bundled script:**
+
+```
+python <skill-dir>/scripts/extract_package_from_pr.py <pr-url-or-number>
+```
+
+**Parse the `=== SESSION_STATE ===` block** to extract:
+- `package_name` — the Python SDK package name (e.g., `azure-mgmt-securityinsights`)
+- `pr_number` — the spec PR number
+- `pr_head_ref` — the PR's source branch name
+- `pr_head_owner` — the fork owner (GitHub username)
+
+**Store to SQL session state:**
+
+```sql
+CREATE TABLE IF NOT EXISTS session_state (key TEXT PRIMARY KEY, value TEXT);
+INSERT OR REPLACE INTO session_state (key, value) VALUES
+  ('package_name', '<parsed value>'),
+  ('pr_number', '<parsed value>'),
+  ('pr_head_ref', '<parsed value>'),
+  ('pr_head_owner', '<parsed value>');
+```
+
+Then proceed to Step 0 with the extracted `package_name`.
 
 ### Step 0: Setup Worktrees
 
@@ -144,22 +184,28 @@ INSERT OR REPLACE INTO session_state (key, value) VALUES
 
 ### Step 3: Generate TypeSpec SDK and Code Report
 
-Generate the Python SDK from the post-migration TypeSpec spec (latest main) and produce a breaking change code report.
+Generate the Python SDK from the post-migration TypeSpec spec and produce a breaking change code report.
 
 **Read session state:**
 
 ```sql
 SELECT key, value FROM session_state
-WHERE key IN ('package_name', 'spec_folder', 'spec_worktree', 'sdk_worktree', 'github_username');
+WHERE key IN ('package_name', 'spec_folder', 'spec_worktree', 'sdk_worktree', 'github_username', 'pr_number');
 ```
 
 **Run the bundled script:**
 
-```
-python <skill-dir>/scripts/generate_typespec_sdk.py <package_name> <spec_folder> --spec-dir <spec_worktree> --sdk-dir <sdk_worktree>
-```
+- **Package name mode** (no `pr_number` in session state):
+  ```
+  python <skill-dir>/scripts/generate_typespec_sdk.py <package_name> <spec_folder> --spec-dir <spec_worktree> --sdk-dir <sdk_worktree>
+  ```
 
-The script checks out `origin/main` but uses the latest commit that touched the service's spec folder (not the repo HEAD) for its cache key. This avoids unnecessary regeneration when unrelated services are updated. It searches commit history for `generated from typespec:<head_sha>` and reuses the cached commit if found, skipping regeneration automatically. If the script reports a cache hit, Steps 4 and 5 can also be skipped since the spec has not changed since the last generation.
+- **PR mode** (when `pr_number` exists in session state):
+  ```
+  python <skill-dir>/scripts/generate_typespec_sdk.py <package_name> <spec_folder> --spec-dir <spec_worktree> --sdk-dir <sdk_worktree> --pr-number <pr_number>
+  ```
+
+In package name mode, the script checks out `origin/main`. In PR mode, it fetches `pull/<pr_number>/head` and checks out the PR's head commit instead. In both modes, it uses the latest commit that touched the service's spec folder for its cache key. It searches commit history for `generated from typespec:<head_sha>` and reuses the cached commit if found, skipping regeneration automatically. If the script reports a cache hit, Steps 4 and 5 can also be skipped since the spec has not changed since the last generation.
 
 **Parse the `=== SESSION_STATE ===` block** to extract:
 - `typespec_code_report` — absolute path to `code_report_typespec.json`
@@ -216,7 +262,8 @@ Analyze the changelog from step 4, classify each breaking change, generate mitig
 SELECT key, value FROM session_state
 WHERE key IN ('package_name', 'spec_folder', 'has_breaking_changes', 'sdk_package_path',
               'changelog_path', 'spec_worktree', 'spec_branch', 'github_username',
-              'pre_migration_commit', 'swagger_spec_folder');
+              'pre_migration_commit', 'swagger_spec_folder',
+              'pr_number', 'pr_head_ref', 'pr_head_owner');
 ```
 
 If `has_breaking_changes` is `false`, report that no mitigations are needed and stop.
@@ -246,7 +293,11 @@ using Azure.ClientGenerator.Core;
 ```
 2. Update `tspconfig.yaml` to use `client.tsp` as entry point if needed
 
-**Create a draft spec PR:**
+**Push spec mitigations** — the approach depends on whether a PR was provided:
+
+#### Package name mode (no `pr_number` in session state):
+
+Create a new draft spec PR:
 
 ```
 cd <spec_worktree>
@@ -261,6 +312,24 @@ gh pr create --repo Azure/azure-rest-api-specs --head <github_username>:<spec_br
 ```
 
 The PR body should include a summary table of all breaking changes and their classification.
+
+#### PR mode (when `pr_number` exists in session state):
+
+Push mitigations to the input PR's source branch so they become part of the existing PR:
+
+```
+cd <spec_worktree>
+git add . && git commit -m "Mitigate Python SDK breaking changes for {package}"
+```
+
+Ensure the fork remote exists (the PR may come from a fork):
+
+```
+git remote add <pr_head_owner> https://github.com/<pr_head_owner>/azure-rest-api-specs.git  # if not already added
+git push <pr_head_owner> HEAD:<pr_head_ref>
+```
+
+Report that mitigations were pushed to the existing spec PR: `https://github.com/Azure/azure-rest-api-specs/pull/<pr_number>`
 
 **Create a draft SDK PR:**
 
@@ -286,7 +355,7 @@ The PR body (`<report>`) should contain the full breaking change analysis report
 
 **Report to user:**
 - Summary of classifications (accepted vs mitigated)
-- The spec PR URL (if any)
+- The spec PR URL (if any — in PR mode, link to the existing PR)
 - The SDK draft PR URL
 - List of accepted breaking changes that will remain
 

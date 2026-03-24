@@ -61,6 +61,7 @@ def main():
     parser.add_argument("spec_folder", help="TypeSpec project folder in spec repo")
     parser.add_argument("--spec-dir", required=True, help="Path to spec repo (or worktree)")
     parser.add_argument("--sdk-dir", required=True, help="Path to SDK repo (or worktree)")
+    parser.add_argument("--pr-number", default=None, help="Spec PR number (fetch PR head instead of origin/main)")
     args = parser.parse_args()
 
     package_name = args.package_name
@@ -90,11 +91,21 @@ def main():
     print(f"SDK repo:      {sdk_repo}")
     print(f"Spec folder:   {spec_folder}")
 
-    # 1. Clean REST repo and checkout origin/main
+    # 1. Clean REST repo and checkout target ref
     print("\n" + "=" * 60)
-    print("Step 1: Clean REST repo -> checkout origin/main")
+    pr_number = args.pr_number
+    if pr_number:
+        print(f"Step 1: Clean REST repo -> checkout PR #{pr_number} head")
+    else:
+        print("Step 1: Clean REST repo -> checkout origin/main")
     print("=" * 60)
-    run_cmd("git checkout . && git clean -fd && git checkout origin/main && git pull origin main", cwd=rest_repo)
+
+    if pr_number:
+        pr_ref = f"pr-{pr_number}"
+        run_cmd(f"git fetch origin pull/{pr_number}/head:{pr_ref}", cwd=rest_repo)
+        run_cmd(f"git checkout . && git clean -fd && git checkout {pr_ref}", cwd=rest_repo)
+    else:
+        run_cmd("git checkout . && git clean -fd && git checkout origin/main && git pull origin main", cwd=rest_repo)
 
     # Get HEAD SHA scoped to the service folder for stable caching.
     # Using the latest commit that touched this service (instead of repo HEAD)
@@ -105,7 +116,8 @@ def main():
         print("Warning: No commits found for service folder, falling back to repo HEAD")
         result = run_cmd("git rev-parse HEAD", cwd=rest_repo)
         head_sha = result.stdout.strip()
-    print(f"HeadSha: {head_sha} (latest commit touching {spec_folder}/)")
+    source = f"PR #{pr_number}" if pr_number else spec_folder
+    print(f"HeadSha: {head_sha} (latest commit touching {source}/)")
 
     # 2. Clean SDK repo and ensure on migration branch
     print("\n" + "=" * 60)
