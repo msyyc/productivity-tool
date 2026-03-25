@@ -77,8 +77,8 @@ async def create_task(req: CreateTaskRequest):
         )
 
     elif req.type == TaskType.REMINDER:
-        if not req.delay_minutes or req.delay_minutes <= 0:
-            raise HTTPException(400, "delay_minutes must be a positive integer")
+        if req.delay_minutes is None or req.delay_minutes < 0:
+            raise HTTPException(400, "delay_minutes must be a non-negative integer")
         fire_at = datetime.now(timezone.utc) + timedelta(minutes=req.delay_minutes)
         task.reminder = ReminderConfig(delay_minutes=req.delay_minutes, fire_at=fire_at.isoformat())
 

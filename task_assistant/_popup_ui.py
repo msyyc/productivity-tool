@@ -77,22 +77,30 @@ def _show_popup_window(title: str, message: str, link: str):
     close_btn = tk.Label(header_frame, text="✕", font=close_font, bg=BG, fg=OVERLAY, cursor="hand2")
     close_btn.pack(side="right")
 
+    minimize_btn = tk.Label(header_frame, text="—", font=close_font, bg=BG, fg=OVERLAY, cursor="hand2")
+    minimize_btn.pack(side="right", padx=(0, 8))
+
     # Message (PR title or description)
     content_y = 70
+    body_widgets = []
     if message:
         msg_label = tk.Label(
             root, text=message, font=msg_font, bg=BG, fg=FG, wraplength=W - 56, anchor="w", justify="left"
         )
         msg_label.place(x=28, y=content_y)
+        body_widgets.append(msg_label)
         content_y += 36
 
     # Divider
-    tk.Frame(root, bg=SURFACE1, height=1).place(x=28, y=content_y + 2, width=W - 56)
+    divider = tk.Frame(root, bg=SURFACE1, height=1)
+    divider.place(x=28, y=content_y + 2, width=W - 56)
+    body_widgets.append(divider)
 
     # Link row
     display_link = link if len(link) <= 65 else link[:62] + "…"
     link_label = tk.Label(root, text=display_link, font=link_font, bg=BG, fg=ACCENT, cursor="hand2", anchor="w")
     link_label.place(x=28, y=content_y + 14)
+    body_widgets.append(link_label)
 
     result = ["dismissed"]
 
@@ -108,6 +116,7 @@ def _show_popup_window(title: str, message: str, link: str):
     btn_y = H - 62
     btn_canvas = tk.Canvas(root, width=W - 56, height=42, bg=BG, highlightthickness=0)
     btn_canvas.place(x=28, y=btn_y)
+    body_widgets.append(btn_canvas)
 
     open_btn_id = _rounded_rect(btn_canvas, 0, 0, 140, 40, 10, fill=ACCENT, outline="")
     btn_canvas.create_text(70, 20, text="Open Link", font=btn_font, fill=BG)
@@ -138,6 +147,66 @@ def _show_popup_window(title: str, message: str, link: str):
             btn_canvas.itemconfig(dismiss_txt_id, fill=SUBTEXT),
         ),
     )
+
+    # Minimize / Restore logic
+    minimized = [False]
+    MINI_H = 52
+
+    def _minimize(e=None):
+        if minimized[0]:
+            return
+        minimized[0] = True
+        for w in body_widgets:
+            w.place_forget()
+        canvas.place_forget()
+        canvas_mini = tk.Canvas(root, width=W, height=MINI_H, bg=BG, highlightthickness=0)
+        canvas_mini.place(x=0, y=0)
+        _rounded_rect(canvas_mini, 0, 0, W, MINI_H, RADIUS, fill=BG, outline=SURFACE1, width=2)
+        canvas_mini.create_rectangle(RADIUS, 0, W - RADIUS, 5, fill=ACCENT, outline="")
+        canvas_mini.create_rectangle(2, 5, W - 2, 5, fill=ACCENT, outline="")
+        canvas_mini.bind("<Button-1>", _start_drag)
+        canvas_mini.bind("<B1-Motion>", _on_drag)
+        root._mini_canvas = canvas_mini
+        header_frame.lift()
+        minimize_btn.configure(text="□")
+        cur_x = root.winfo_x()
+        new_y = root.winfo_y() + (H - MINI_H)
+        root.geometry(f"{W}x{MINI_H}+{cur_x}+{new_y}")
+
+    def _restore(e=None):
+        if not minimized[0]:
+            return
+        minimized[0] = False
+        if hasattr(root, "_mini_canvas"):
+            root._mini_canvas.destroy()
+        canvas.place(x=0, y=0)
+        # Re-place body widgets at original positions
+        _restore_body_widgets()
+        header_frame.lift()
+        minimize_btn.configure(text="—")
+        cur_x = root.winfo_x()
+        new_y = root.winfo_y() - (H - MINI_H)
+        root.geometry(f"{W}x{H}+{cur_x}+{new_y}")
+
+    def _restore_body_widgets():
+        _content_y = 70
+        if message:
+            body_widgets[0].place(x=28, y=_content_y)
+            _content_y += 36
+        idx = 1 if message else 0
+        body_widgets[idx].place(x=28, y=_content_y + 2, width=W - 56)
+        body_widgets[idx + 1].place(x=28, y=_content_y + 14)
+        body_widgets[idx + 2].place(x=28, y=H - 62)
+
+    def _toggle_minimize(e=None):
+        if minimized[0]:
+            _restore()
+        else:
+            _minimize()
+
+    minimize_btn.bind("<Button-1>", _toggle_minimize)
+    minimize_btn.bind("<Enter>", lambda e: minimize_btn.configure(fg=ACCENT))
+    minimize_btn.bind("<Leave>", lambda e: minimize_btn.configure(fg=OVERLAY))
 
     # Close button and link
     close_btn.bind("<Button-1>", lambda e: _close())
