@@ -293,12 +293,37 @@ def load_env_file(work_dir):
 # ---------------------------------------------------------------------------
 
 
+def ensure_test_deps_in_dev_requirements(sdk_dir):
+    """Append azure-identity and aiohttp to dev_requirements.txt if missing."""
+    dev_req = os.path.join(sdk_dir, "dev_requirements.txt")
+    if not os.path.isfile(dev_req):
+        return
+
+    content = pathlib.Path(dev_req).read_text(encoding="utf-8")
+    lines = content.splitlines()
+    # Normalize for comparison: strip whitespace, ignore comments/blanks
+    existing = {l.strip().lower() for l in lines if l.strip() and not l.strip().startswith("#")}
+
+    to_add = []
+    for dep in ["azure-identity", "aiohttp"]:
+        if not any(dep in entry for entry in existing):
+            to_add.append(dep)
+
+    if to_add:
+        log(f"Adding missing test deps to dev_requirements.txt: {', '.join(to_add)}")
+        with open(dev_req, "a", encoding="utf-8") as f:
+            for dep in to_add:
+                f.write(f"\n{dep}")
+
+
 def install_deps(venv_pip, sdk_dir):
     """Install dev requirements and package in editable mode."""
+    ensure_test_deps_in_dev_requirements(sdk_dir)
+
     dev_req = os.path.join(sdk_dir, "dev_requirements.txt")
     if os.path.isfile(dev_req):
         log("Installing dev_requirements.txt...")
-        subprocess.run([venv_pip, "install", "-r", dev_req], check=True)
+        subprocess.run([venv_pip, "install", "-r", dev_req], cwd=sdk_dir, check=True)
     else:
         log("Warning: dev_requirements.txt not found, skipping.")
 
