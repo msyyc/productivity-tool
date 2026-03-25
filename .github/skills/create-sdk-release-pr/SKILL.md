@@ -183,6 +183,76 @@ INSERT OR REPLACE INTO session_state (key, value) VALUES
 
 **Report to user:** summary of changelog changes made.
 
+### Step 7: Run Live Tests
+
+Run live tests on the SDK package in the worktree. This step uses the bundled `run_live_tests.py` script in two phases.
+
+**Prerequisites:**
+- A `.env` file at the work folder root (e.g., `C:/dev/.env`) with these variables:
+  ```
+  AZURE_TEST_RUN_LIVE=true
+  AZURE_TEST_USE_CLI_AUTH=true
+  AZURE_SKIP_LIVE_RECORDING=true
+  AZURE_TENANT_ID=<your-tenant-id>
+  AZURE_SUBSCRIPTION_ID=<your-subscription-id>
+  ```
+
+#### Phase 1: Prepare Tests
+
+Run the script with `--prepare-only` to copy and transform generated tests, then stop for review:
+
+```
+python <skill-dir>/scripts/run_live_tests.py <package_name> --worktree-dir <worktree_path> --work-dir <work_folder> --prepare-only
+```
+
+This will:
+1. Locate the SDK package directory under `<worktree_path>/sdk/`
+2. Run a pre-flight check: if the CHANGELOG version is `1.0.0b1`, verify the `pyproject.toml` title contains "Mgmt". If it does not, the script fails — report the error and stop. If it does, **ask the user** whether to continue before proceeding.
+3. Copy test files from `generated_tests/` to `tests/`:
+   - Skip entirely if `*_test.py` files already exist in `tests/`
+   - Only copy files that contain `list` method calls
+   - Rename to `*_test.py` suffix
+   - Apply transformations: `@pytest.mark.skip` → `@pytest.mark.live_test_only`, placeholder comments → `assert result == []`, remove `# ...` lines, strip `api_version=` from `list*()` calls
+
+**Parse the `=== SESSION_STATE ===` block** to extract:
+- `sdk_dir` — absolute path to the SDK package directory
+- `files_updated` — number of test files copied
+
+**Report to user:** the list of copied/transformed test files. Ask the user to review before continuing.
+
+#### Phase 2: Full Run
+
+After the user confirms, run the script without `--prepare-only`:
+
+```
+python <skill-dir>/scripts/run_live_tests.py <package_name> --worktree-dir <worktree_path> --work-dir <work_folder>
+```
+
+This will:
+1. Repeat the test preparation (idempotent — skips if `*_test.py` already exist)
+2. Set up a virtual environment at `<worktree_path>/.venv`:
+   - Reuse if it already exists
+   - Otherwise create it and install `eng/tools/azure-sdk-tools[ghtools,sdkgenerator]`
+3. Load environment variables from `<work_folder>/.env`
+4. Install `dev_requirements.txt` and the package in editable mode
+5. Run `pytest tests`
+6. Format `generated_tests/`, `generated_samples/`, and `tests/` with `black -l 120`
+
+**Parse the `=== SESSION_STATE ===` block** to extract:
+- `sdk_dir` — absolute path to the SDK package directory
+- `files_updated` — number of test files updated
+- `test_result` — `passed` or `failed`
+
+**Commit and push:**
+
+```
+cd <worktree_path>
+git add .
+git diff --staged --quiet || (git commit -m "Add live tests for <package_name>" && git push)
+```
+
+**Report to user:** test results and whether changes were committed.
+
 ## Rules
 
 - Use `az pipelines` CLI for pipeline operations, `gh` CLI for GitHub operations.
