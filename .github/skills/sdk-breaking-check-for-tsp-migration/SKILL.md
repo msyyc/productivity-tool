@@ -315,21 +315,21 @@ The PR body should include a summary table of all breaking changes and their cla
 
 #### PR mode (when `pr_number` exists in session state):
 
-Push mitigations to the input PR's source branch so they become part of the existing PR:
+Create a new draft spec PR targeting the input PR's source branch:
 
 ```
 cd <spec_worktree>
 git add . && git commit -m "Mitigate Python SDK breaking changes for {package}"
+git push <github_username> HEAD
 ```
 
-Ensure the fork remote exists (the PR may come from a fork):
+Write the PR body to a temporary file first, then create the PR with `--body-file`:
 
 ```
-git remote add <pr_head_owner> https://github.com/<pr_head_owner>/azure-rest-api-specs.git  # if not already added
-git push <pr_head_owner> HEAD:<pr_head_ref>
+gh pr create --repo <pr_head_owner>/azure-rest-api-specs --head <github_username>:<spec_branch> --base <pr_head_ref> --draft --title "[Python] Mitigate breaking changes for {package_name}" --body-file <temp-file>
 ```
 
-Report that mitigations were pushed to the existing spec PR: `https://github.com/Azure/azure-rest-api-specs/pull/<pr_number>`
+The PR body should include a summary table of all breaking changes and their classification.
 
 **Create a draft SDK PR:**
 
@@ -355,7 +355,7 @@ The PR body (`<report>`) should contain the full breaking change analysis report
 
 **Report to user:**
 - Summary of classifications (accepted vs mitigated)
-- The spec PR URL (if any — in PR mode, link to the existing PR)
+- The spec PR URL (if any — in PR mode, link to the newly created mitigation PR)
 - The SDK draft PR URL
 - List of accepted breaking changes that will remain
 
