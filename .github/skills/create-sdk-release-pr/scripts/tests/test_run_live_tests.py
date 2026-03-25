@@ -279,6 +279,18 @@ class TestTransformTestContent:
         result = transform_test_content(text)
         assert "assert result is not None" in result
 
+    def test_uses_len_assertion_for_list_comprehension_result(self):
+        text = textwrap.dedent("""\
+            class TestFoo:
+                def test_list(self):
+                    response = self.client.operations.list()
+                    result = [r for r in response]
+                    # please add some check logic here by yourself
+        """)
+        result = transform_test_content(text)
+        assert "assert len(result) >= 0" in result
+        assert "assert result is not None" not in result
+
     def test_filters_out_non_qualifying_methods(self):
         text = textwrap.dedent("""\
             class TestFoo:

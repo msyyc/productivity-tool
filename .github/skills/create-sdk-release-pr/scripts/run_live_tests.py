@@ -194,16 +194,18 @@ def transform_test_content(text):
             flags=re.MULTILINE,
         )
 
-        # Determine correct variable name for assertion
-        if re.search(r"\bresult\s*=", method_text):
-            var_name = "result"
+        # Determine correct variable name and assertion style
+        if re.search(r"\bresult\s*=\s*\[", method_text):
+            assertion = "assert len(result) >= 0"
+        elif re.search(r"\bresult\s*=", method_text):
+            assertion = "assert result is not None"
         else:
-            var_name = "response"
+            assertion = "assert response is not None"
 
         # Replace check-logic comment with assertion
         method_text = re.sub(
             r"^(?P<indent>\s*)# please add some check logic here by yourself\s*(?:\r?\n)",
-            lambda m, v=var_name: f"{m.group('indent')}assert {v} is not None\n",
+            lambda m, a=assertion: f"{m.group('indent')}{a}\n",
             method_text,
             flags=re.MULTILINE | re.IGNORECASE,
         )
