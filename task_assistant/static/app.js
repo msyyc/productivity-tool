@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       const link = qcInput.value.trim();
       const minutes = parseInt(qcTime.value);
-      if (link && minutes > 0) await createQuickTask(link, minutes);
+      if (link && minutes >= 0) await createQuickTask(link, minutes);
     } else if (e.key === 'Escape') {
       qc.classList.add('hidden');
     }

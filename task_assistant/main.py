@@ -67,7 +67,7 @@ async def create_task(req: CreateTaskRequest):
     if req.type == TaskType.PR_MONITOR:
         if not pr_match:
             raise HTTPException(400, "Invalid GitHub PR URL")
-        timeout = req.timeout_minutes or 30
+        timeout = req.timeout_minutes if req.timeout_minutes is not None else 30
         expire_at = datetime.now(timezone.utc) + timedelta(minutes=timeout)
         task.pr_monitor = PRMonitorConfig(
             repo=pr_match.group(1),
