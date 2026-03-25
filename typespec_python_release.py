@@ -8,6 +8,7 @@ for the Azure/autorest.python repository.
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -467,6 +468,7 @@ examples:
   python typespec_python_release.py <path_to_autorest_python_repo> --base-branch feature-branch
   python typespec_python_release.py <path_to_autorest_python_repo> --skip-pr
   python typespec_python_release.py <path_to_autorest_python_repo> --skip-build
+  python typespec_python_release.py <path_to_autorest_python_repo> --no-gui
   python typespec_python_release.py C:\\dev\\autorest.python --base-branch my-feature-branch
 """,
     )
@@ -477,6 +479,7 @@ examples:
     )
     parser.add_argument("--skip-pr", action="store_true", help="Skip creating the PR (useful for testing)")
     parser.add_argument("--skip-build", action="store_true", help="Skip the build step (useful for testing)")
+    parser.add_argument("--no-gui", action="store_true", help="Disable GUI popup (for automated/headless usage)")
 
     args = parser.parse_args()
 
@@ -545,7 +548,10 @@ examples:
         else:
             pr_url = create_pr_if_needed(repo_path, base_branch)
             if pr_url:
-                show_pr_link_window(pr_url)
+                if args.no_gui or os.environ.get("NO_GUI"):
+                    print(f"\n  PR URL: {pr_url}")
+                else:
+                    show_pr_link_window(pr_url)
 
         print("\n" + "=" * 50)
         print("Bump and release workflow completed successfully!")
