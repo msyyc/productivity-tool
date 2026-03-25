@@ -240,18 +240,39 @@ This will:
 
 **Parse the `=== SESSION_STATE ===` block** to extract:
 - `sdk_dir` — absolute path to the SDK package directory
-- `files_updated` — number of test files updated
+- `files_updated` — number of test files updated (will be `0` if Phase 1 already copied them; use the Phase 1 value for reporting)
 - `test_result` — `passed` or `failed`
+- `test_summary_path` — path to the generated markdown summary file
 
 **Commit and push:**
 
 ```
 cd <worktree_path>
 git add .
+git reset -- <test_summary_path>
 git diff --staged --quiet || (git commit -m "Add live tests for <package_name>" && git push)
 ```
 
-**Report to user:** test results and whether changes were committed.
+**Post test results as a PR comment:**
+
+Use the generated summary file to comment on the PR:
+
+```
+gh pr comment <pr_number> --repo Azure/azure-sdk-for-python --body-file <test_summary_path>
+```
+
+The summary file contains a structured markdown report with:
+- Overall pass/fail status with emoji
+- Pytest summary line (e.g., "3 passed, 1 failed in 5.23s")
+- For each failed test: the test name and extracted root cause (exception message and relevant traceback)
+
+**Clean up** the temporary summary file after posting:
+
+```
+Remove-Item <test_summary_path>
+```
+
+**Report to user:** test results, whether changes were committed, and that the PR comment was posted.
 
 ## Rules
 

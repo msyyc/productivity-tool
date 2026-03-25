@@ -40,6 +40,7 @@ def die(msg):
 # Locate SDK directory
 # ---------------------------------------------------------------------------
 
+
 def find_sdk_dir(worktree_dir, package_name):
     """Find the SDK package directory under <worktree>/sdk/."""
     sdk_root = os.path.join(worktree_dir, "sdk")
@@ -57,6 +58,7 @@ def find_sdk_dir(worktree_dir, package_name):
 # ---------------------------------------------------------------------------
 # Pre-flight checks
 # ---------------------------------------------------------------------------
+
 
 def get_sdk_version(changelog_path):
     """Extract the first version from CHANGELOG.md (e.g. '1.0.0b1')."""
@@ -107,6 +109,7 @@ def preflight_check(sdk_dir):
 # ---------------------------------------------------------------------------
 # Test file transformation
 # ---------------------------------------------------------------------------
+
 
 def transform_test_content(text):
     """Apply all transformations to a generated test file."""
@@ -164,11 +167,7 @@ def copy_and_transform_tests(sdk_dir):
         updated_files.append(conftest_dest)
 
     # Find all .py files except conftest.py
-    sources = sorted(
-        p
-        for p in pathlib.Path(gen_dir).rglob("*.py")
-        if p.name != "conftest.py"
-    )
+    sources = sorted(p for p in pathlib.Path(gen_dir).rglob("*.py") if p.name != "conftest.py")
 
     if not sources:
         die(f"No generated test files found in {gen_dir}")
@@ -212,6 +211,7 @@ def _process_file(src, dest):
 # ---------------------------------------------------------------------------
 # Virtual environment setup
 # ---------------------------------------------------------------------------
+
 
 def get_python_executable():
     """Get the python executable name (python or python3)."""
@@ -257,6 +257,7 @@ def setup_venv(worktree_dir):
 # Load .env
 # ---------------------------------------------------------------------------
 
+
 def load_env_file(work_dir):
     """Load environment variables from <work_dir>/.env."""
     env_path = os.path.join(work_dir, ".env")
@@ -291,6 +292,7 @@ def load_env_file(work_dir):
 # Install deps, run tests, format
 # ---------------------------------------------------------------------------
 
+
 def install_deps(venv_pip, sdk_dir):
     """Install dev requirements and package in editable mode."""
     dev_req = os.path.join(sdk_dir, "dev_requirements.txt")
@@ -305,7 +307,7 @@ def install_deps(venv_pip, sdk_dir):
 
 
 def run_pytest(venv_python, sdk_dir, env_vars):
-    """Run pytest on the tests/ directory. Returns True if tests passed."""
+    """Run pytest on the tests/ directory. Returns (passed, summary_md)."""
     tests_dir = os.path.join(sdk_dir, "tests")
     env = os.environ.copy()
     env.update(env_vars)
@@ -315,14 +317,122 @@ def run_pytest(venv_python, sdk_dir, env_vars):
         [venv_python, "-m", "pytest", tests_dir, "-v"],
         cwd=sdk_dir,
         env=env,
+        capture_output=True,
+        text=True,
     )
 
-    if result.returncode != 0:
-        log("Pytest failed; continuing script execution.")
-        return False
+    stdout = result.stdout or ""
+    stderr = result.stderr or ""
+    full_output = stdout + "\n" + stderr
 
-    log("Pytest passed.")
-    return True
+    # Always print output so the caller can see it
+    if stdout:
+        print(stdout)
+    if stderr:
+        print(stderr, file=sys.stderr)
+
+    passed = result.returncode == 0
+    summary_md = _build_test_summary(full_output, passed)
+
+    if not passed:
+        log("Pytest failed; continuing script execution.")
+    else:
+        log("Pytest passed.")
+
+    return passed, summary_md
+
+
+def _build_test_summary(output, passed):
+    """Build a markdown summary of pytest results with failure root causes."""
+    lines = output.splitlines()
+
+    # Extract the pytest summary line (e.g., "= 3 passed, 1 failed in 5.23s =")
+    summary_line = ""
+    for line in reversed(lines):
+        if re.search(r"\d+\s+(passed|failed|error)", line):
+            summary_line = line.strip().strip("=").strip()
+            break
+
+    status_emoji = "✅" if passed else "❌"
+    parts = [f"## {status_emoji} Live Test Results\n"]
+    if summary_line:
+        parts.append(f"**Summary:** {summary_line}\n")
+
+    if not passed:
+        failures = _extract_failures(lines)
+        if failures:
+            parts.append("### Failed Tests\n")
+            for name, root_cause in failures:
+                parts.append(f"#### `{name}`\n")
+                parts.append(f"```\n{root_cause}\n```\n")
+
+    return "\n".join(parts)
+
+
+def _extract_failures(lines):
+    """Extract failed test names and their root cause from pytest output.
+
+    Returns a list of (test_name, root_cause) tuples.
+    """
+    failures = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+
+        # Detect FAILED header: "_ _ _ test_name _ _ _" or "FAILED test_name"
+        header_match = re.match(r"^_{3,}\s+(.+?)\s+_{3,}$", line)
+        if header_match:
+            test_name = header_match.group(1)
+            # Collect the failure block until the next separator or short summary
+            block_lines = []
+            i += 1
+            while i < len(lines):
+                if re.match(r"^(_{3,}|={3,})\s", lines[i]):
+                    break
+                block_lines.append(lines[i])
+                i += 1
+            root_cause = _extract_root_cause(block_lines)
+            failures.append((test_name, root_cause))
+            continue
+
+        # Also catch the short summary line: "FAILED tests/foo_test.py::test_bar - Error..."
+        short_match = re.match(r"^FAILED\s+(\S+?)(?:\s+-\s+(.+))?$", line)
+        if short_match:
+            test_name = short_match.group(1)
+            # Only add if we didn't already capture this test from a full block
+            if not any(test_name in n for n, _ in failures):
+                error_hint = short_match.group(2) or ""
+                failures.append((test_name, error_hint))
+
+        i += 1
+
+    return failures
+
+
+def _extract_root_cause(block_lines):
+    """Extract the root cause from a failure block.
+
+    Looks for the last exception/error message and the most relevant traceback
+    lines (the final raise + error line).
+    """
+    if not block_lines:
+        return "(no details captured)"
+
+    # Find lines starting with "E " (pytest error annotation) — these are the root cause
+    error_lines = [l for l in block_lines if re.match(r"^E\s+", l)]
+    if error_lines:
+        # Include the last few context lines before the first E line for traceback
+        first_e_idx = next(i for i, l in enumerate(block_lines) if re.match(r"^E\s+", l))
+        # Grab up to 3 lines of traceback context before the E lines
+        context_start = max(0, first_e_idx - 3)
+        context = block_lines[context_start:first_e_idx]
+        # Filter context to only file/line references
+        context = [l for l in context if re.search(r"\.py:\d+", l) or l.strip().startswith(">")]
+        return "\n".join(context + error_lines).strip()
+
+    # Fallback: return last 10 non-empty lines
+    tail = [l for l in block_lines if l.strip()][-10:]
+    return "\n".join(tail).strip() if tail else "(no details captured)"
 
 
 def run_black_formatting(venv_python, sdk_dir):
@@ -347,6 +457,7 @@ def run_black_formatting(venv_python, sdk_dir):
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main():
     parser = argparse.ArgumentParser(description="Run live tests for an Azure SDK package")
@@ -400,7 +511,12 @@ def main():
     install_deps(venv_pip, sdk_dir)
 
     # Run pytest
-    test_passed = run_pytest(venv_python, sdk_dir, env_vars)
+    test_passed, summary_md = run_pytest(venv_python, sdk_dir, env_vars)
+
+    # Write test summary to a temp file for PR commenting (inside SDK dir, excluded from git add)
+    summary_path = os.path.join(sdk_dir, ".test_summary.md")
+    pathlib.Path(summary_path).write_text(summary_md, encoding="utf-8")
+    log(f"Test summary written to {summary_path}")
 
     # Format
     run_black_formatting(venv_python, sdk_dir)
@@ -410,6 +526,7 @@ def main():
     print(f"sdk_dir={sdk_dir}")
     print(f"files_updated={len(updated_files)}")
     print(f"test_result={'passed' if test_passed else 'failed'}")
+    print(f"test_summary_path={summary_path}")
     print("=====================")
 
     log("Done.")

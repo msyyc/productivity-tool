@@ -173,7 +173,7 @@ When multiple `...List` models are reported as "deleted or renamed" (including m
 ```
 ### Other Changes
 
-  - Deleted model `ElasticSanList`/`SkuInformationList`/`SnapshotList`/`VolumeGroupList`/`VolumeList` which actually were not used by SDK users
+  - Deleted model `SkuInformationList`/`SnapshotList`/`VolumeGroupList`/`VolumeList` which actually were not used by SDK users
 ```
 
 ### 9. Group Parameter Kind Changes
