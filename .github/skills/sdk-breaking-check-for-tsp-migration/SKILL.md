@@ -88,6 +88,14 @@ Create isolated git worktrees for the spec repo and SDK repo.
 
 **Input:** SDK package name (e.g., `azure-mgmt-securityinsights`)
 
+**PyPI release check:** Before creating worktrees, verify the package has been published to PyPI:
+
+```
+pip index versions <package-name>
+```
+
+If the package is **not found on PyPI**, or the **only published version is `0.0.0`** (a placeholder, not a real release), inform the user that the package has never been released, so there are no existing consumers to break — breaking change validation is unnecessary. **Stop the workflow** unless the user explicitly asks to continue.
+
 **Prerequisites:** `azure-rest-api-specs` and `azure-sdk-for-python` must exist under the same parent directory (defaults to `C:/dev` on Windows, `/workspaces` on Linux).
 
 **Run the bundled script:**
