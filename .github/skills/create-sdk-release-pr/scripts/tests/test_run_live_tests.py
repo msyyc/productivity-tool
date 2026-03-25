@@ -16,7 +16,9 @@ from run_live_tests import (
     _extract_failures,
     _extract_root_cause,
     _has_only_api_version_param,
+    _sanitize_error,
     _split_test_file,
+    _strip_ansi,
     copy_and_transform_tests,
     ensure_test_deps_in_dev_requirements,
     find_sdk_dir,
@@ -496,6 +498,36 @@ class TestExtractFailures:
         assert len(failures) == 1
         assert failures[0][0] == "test_alpha"
 
+    def test_single_underscore_header(self):
+        """Pytest uses single _ when test name is long and fills the line width."""
+        lines = [
+            "_ TestVeryLongClassName.test_very_long_method_name _",
+            "    self = <TestVeryLongClassName>",
+            "_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _",
+            "    response = client.list()",
+            "_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _",
+            "E       ResourceNotFoundError: resource not found",
+            "E       Code: NotFound",
+            "=== short test summary ===",
+        ]
+        failures = _extract_failures(lines)
+        assert len(failures) >= 1
+        assert "TestVeryLongClassName" in failures[0][0]
+        assert "ResourceNotFoundError" in failures[0][1]
+        assert "Code: NotFound" in failures[0][1]
+
+    def test_ignores_separator_only_lines(self):
+        """Lines like '_ _ _ _ _' should NOT produce their own failure entry."""
+        lines = [
+            "___ test_alpha ___",
+            "_ _ _ _ _ _ _ _ _",
+            "E       ValueError: bad",
+            "=== short test summary ===",
+        ]
+        failures = _extract_failures(lines)
+        assert len(failures) == 1
+        assert failures[0][0] == "test_alpha"
+
     def test_extracts_short_summary_failure(self):
         lines = [
             "FAILED tests/foo_test.py::test_bar - AssertionError",
@@ -536,12 +568,18 @@ class TestExtractRootCause:
     def test_fallback_for_no_e_lines(self):
         block = ["line 1", "line 2", "line 3"]
         cause = _extract_root_cause(block)
-        assert "line" in cause
+        assert cause == "(no details captured)"
+
+    def test_fallback_for_exception_without_e_prefix(self):
+        block = ["line 1", "some SomeError occurred", "line 3"]
+        cause = _extract_root_cause(block)
+        assert "SomeError" in cause
 
     def test_empty_block(self):
         assert _extract_root_cause([]) == "(no details captured)"
 
-    def test_includes_traceback_context(self):
+    def test_excludes_traceback_context(self):
+        """Root cause should NOT include stack traces or file paths."""
         block = [
             "    some preamble",
             "    x = foo()",
@@ -551,4 +589,37 @@ class TestExtractRootCause:
         ]
         cause = _extract_root_cause(block)
         assert "ValueError: bad value" in cause
-        assert "file.py:42" in cause
+        assert "file.py:42" not in cause
+
+
+class TestStripAnsi:
+    def test_removes_color_codes(self):
+        text = "\x1b[31mERROR\x1b[0m: something failed"
+        assert _strip_ansi(text) == "ERROR: something failed"
+
+    def test_leaves_plain_text_unchanged(self):
+        text = "no ansi here"
+        assert _strip_ansi(text) == text
+
+
+class TestSanitizeError:
+    def test_redacts_uuids(self):
+        text = "subscription 12345678-abcd-1234-abcd-1234567890ab not found"
+        result = _sanitize_error(text)
+        assert "12345678" not in result
+        assert "<redacted-id>" in result
+
+    def test_redacts_resource_groups(self):
+        text = "/resourceGroups/my-secret-rg/providers/Microsoft.Network"
+        result = _sanitize_error(text)
+        assert "my-secret-rg" not in result
+        assert "<redacted>" in result
+
+    def test_redacts_local_paths(self):
+        text = "Error at C:\\dev\\myproject\\file.py"
+        result = _sanitize_error(text)
+        assert "C:\\dev" not in result
+
+    def test_preserves_error_message(self):
+        text = "ResourceNotFoundError: resource type not found"
+        assert _sanitize_error(text) == text

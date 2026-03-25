@@ -501,25 +501,40 @@ def _build_test_summary(output, passed):
     return "\n".join(parts)
 
 
+def _strip_ansi(text):
+    """Remove ANSI escape sequences from text."""
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
+
+
 def _extract_failures(lines):
     """Extract failed test names and their root cause from pytest output.
 
     Returns a list of (test_name, root_cause) tuples.
     """
+    lines = [_strip_ansi(l) for l in lines]
     failures = []
     i = 0
     while i < len(lines):
         line = lines[i]
 
-        # Detect FAILED header: "_ _ _ test_name _ _ _" or "FAILED test_name"
-        header_match = re.match(r"^_{3,}\s+(.+?)\s+_{3,}$", line)
-        if header_match:
+        # Detect FAILED header: "_ test_name _" or "______ test_name ______"
+        # Pytest adjusts underscore count based on terminal width; long test names
+        # may leave only 1 underscore on each side.  We require the captured group
+        # to contain at least one letter so we don't match "_ _ _ _ _" sub-separators.
+        header_match = re.match(r"^_+\s+(.+?)\s+_+$", line.strip())
+        if header_match and re.search(r"[a-zA-Z]", header_match.group(1)):
             test_name = header_match.group(1)
-            # Collect the failure block until the next separator or short summary
+            # Collect the failure block until the next test header or section marker
             block_lines = []
             i += 1
             while i < len(lines):
-                if re.match(r"^(_{3,}|={3,})\s", lines[i]):
+                stripped = lines[i].strip()
+                # Break on the next test failure header (underscore-wrapped name)
+                next_hdr = re.match(r"^_+\s+(.+?)\s+_+$", stripped)
+                if next_hdr and re.search(r"[a-zA-Z]", next_hdr.group(1)):
+                    break
+                # Break on section markers like "=== short test summary ==="
+                if re.match(r"^={3,}", stripped):
                     break
                 block_lines.append(lines[i])
                 i += 1
@@ -531,40 +546,67 @@ def _extract_failures(lines):
         short_match = re.match(r"^FAILED\s+(\S+?)(?:\s+-\s+(.+))?$", line)
         if short_match:
             test_name = short_match.group(1)
-            # Only add if we didn't already capture this test from a full block
-            if not any(test_name in n for n, _ in failures):
+            # Only add if we didn't already capture this test from a full block.
+            # Short summary uses "path::Class::method", full block uses "Class.method";
+            # normalise separators before comparing.
+            def _norm(s):
+                return s.replace("::", ".").replace("\\", "/")
+
+            test_norm = _norm(test_name)
+            if not any(_norm(n) in test_norm or test_norm in _norm(n) for n, _ in failures):
                 error_hint = short_match.group(2) or ""
-                failures.append((test_name, error_hint))
+                failures.append((test_name, _sanitize_error(error_hint)))
 
         i += 1
 
     return failures
 
 
-def _extract_root_cause(block_lines):
-    """Extract the root cause from a failure block.
+def _sanitize_error(text):
+    """Remove sensitive information from error text.
 
-    Looks for the last exception/error message and the most relevant traceback
-    lines (the final raise + error line).
+    Redacts UUIDs (subscription/tenant IDs), resource group names in URL
+    paths, and local file paths.
+    """
+    # Redact UUIDs (subscription IDs, tenant IDs, etc.)
+    text = re.sub(
+        r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+        "<redacted-id>",
+        text,
+        flags=re.IGNORECASE,
+    )
+    # Redact resource group names in ARM paths
+    text = re.sub(r"/resourceGroups/[^/\s]+", "/resourceGroups/<redacted>", text)
+    # Redact local file paths
+    text = re.sub(r"[A-Z]:\\[^\s,]+", "<local-path>", text)
+    text = re.sub(r"(?<!\w)/(?:home|Users|tmp|dev)/[^\s,]+", "<local-path>", text)
+    return text.strip()
+
+
+def _extract_root_cause(block_lines):
+    """Extract a sanitized error summary from a failure block.
+
+    Only extracts error type and message from pytest 'E' annotation lines.
+    Does NOT include stack traces or file paths to avoid leaking sensitive info.
     """
     if not block_lines:
         return "(no details captured)"
 
-    # Find lines starting with "E " (pytest error annotation) — these are the root cause
-    error_lines = [l for l in block_lines if re.match(r"^E\s+", l)]
+    # Find lines starting with "E " (pytest error annotation) — these are the error message
+    error_lines = [l.strip() for l in block_lines if re.match(r"^\s*E\s+", l)]
     if error_lines:
-        # Include the last few context lines before the first E line for traceback
-        first_e_idx = next(i for i, l in enumerate(block_lines) if re.match(r"^E\s+", l))
-        # Grab up to 3 lines of traceback context before the E lines
-        context_start = max(0, first_e_idx - 3)
-        context = block_lines[context_start:first_e_idx]
-        # Filter context to only file/line references
-        context = [l for l in context if re.search(r"\.py:\d+", l) or l.strip().startswith(">")]
-        return "\n".join(context + error_lines).strip()
+        # Remove the "E   " prefix from each line
+        cleaned = [re.sub(r"^E\s+", "", l) for l in error_lines]
+        summary = "\n".join(cleaned)
+        return _sanitize_error(summary)
 
-    # Fallback: return last 10 non-empty lines
-    tail = [l for l in block_lines if l.strip()][-10:]
-    return "\n".join(tail).strip() if tail else "(no details captured)"
+    # Fallback: look for the last line with an exception class name
+    for line in reversed(block_lines):
+        stripped = line.strip()
+        if re.search(r"Error|Exception|Failure", stripped):
+            return _sanitize_error(stripped)
+
+    return "(no details captured)"
 
 
 def run_black_formatting(venv_python, sdk_dir):
