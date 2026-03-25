@@ -276,30 +276,40 @@ WHERE key IN ('package_name', 'spec_folder', 'has_breaking_changes', 'sdk_packag
 
 If `has_breaking_changes` is `false`, report that no mitigations are needed and stop.
 
-**Read the changelog** from `changelog_path` to get breaking change items.
+**Extract latest changelog section:**
 
-**Read the classification guide** at [references/breaking-changes-guide.md](references/breaking-changes-guide.md).
+Read the CHANGELOG.md at `changelog_path` and extract only the content under the **first** `##` version heading — everything from that heading up to (but not including) the next `##` heading, or to end-of-file if there is no next heading. This is the latest version section containing the breaking changes detected in Step 4. Store this extracted text for the subagent prompt.
 
-**For each breaking change item:**
+**Launch a subagent for breaking change analysis:**
 
-1. Classify it using the guide's Action Matrix
-2. **ACCEPT** → note it (no code change)
-3. **MITIGATE** → generate `@@clientName` or `@@override` decorator
+Use the `task` tool with `agent_type: "general-purpose"` and `mode: "background"` to dispatch a subagent. Include in the prompt:
 
-**To find TypeSpec type definitions:** search the `spec_folder` in the spec worktree.
+- The extracted latest changelog section (pasted inline)
+- Instruct the subagent to read the classification guide at `<skill-dir>/references/breaking-changes-guide.md` and follow the link inside to read the full guide
+- The `spec_folder` and `spec_worktree` paths (for searching TypeSpec type definitions)
+- The pre-migration swagger source: `<swagger_spec_folder> @ <pre_migration_commit>`
 
-**Generate mitigations** in the spec worktree:
+The subagent must:
 
-1. Create or update `client.tsp` in `<spec_worktree>/<spec_folder>/` with:
-```tsp
-import "./main.tsp";
-import "@azure-tools/typespec-client-generator-core";
+1. Read the full breaking changes classification guide (following the reference link to the SDK repo or fetching from GitHub)
+2. For each breaking change item in the provided changelog section:
+   - Classify it using the guide's Action Matrix
+   - **ACCEPT** → note it (no code change needed)
+   - **MITIGATE** → search for the TypeSpec type definition in `<spec_worktree>/<spec_folder>/` and generate the appropriate `@@clientName` or `@@override` decorator
+3. Generate mitigations in the spec worktree:
+   - Create or update `client.tsp` in `<spec_worktree>/<spec_folder>/` with:
+     ```tsp
+     import "./main.tsp";
+     import "@azure-tools/typespec-client-generator-core";
 
-using Azure.ClientGenerator.Core;
+     using Azure.ClientGenerator.Core;
 
-@@clientName(...);
-```
-2. Update `tspconfig.yaml` to use `client.tsp` as entry point if needed
+     @@clientName(...);
+     ```
+   - Update `tspconfig.yaml` to use `client.tsp` as entry point if needed
+4. Return a structured summary listing each breaking change, its classification (ACCEPT/MITIGATE), and any mitigations applied
+
+**After the subagent completes**, use its classification summary to proceed with PR creation.
 
 **Push spec mitigations** — the approach depends on whether a PR was provided:
 
