@@ -233,6 +233,7 @@ This will:
 2. Set up a virtual environment at `<worktree_path>/.venv`:
    - Reuse if it already exists
    - Otherwise create it and install `eng/tools/azure-sdk-tools[ghtools,sdkgenerator]`
+   - Always install `azure-mgmt-resource` and `black` (regardless of whether the venv is new or reused)
 3. Load environment variables from `<work_folder>/.env`
 4. Install `dev_requirements.txt` and the package in editable mode
 5. Run `pytest tests`

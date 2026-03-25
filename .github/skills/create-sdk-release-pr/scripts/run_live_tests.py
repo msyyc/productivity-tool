@@ -111,36 +111,127 @@ def preflight_check(sdk_dir):
 # ---------------------------------------------------------------------------
 
 
+def _split_test_file(text):
+    """Split a test file into header text and a list of (method_text, method_name) tuples.
+
+    The header includes imports, class definition, and any lines before the first
+    test method.  Each method block includes its decorator(s) and body.
+    """
+    lines = text.split("\n")
+    method_starts = []
+
+    for i, line in enumerate(lines):
+        if re.match(r"^\s+(?:async\s+)?def\s+test_", line):
+            start = i
+            j = i - 1
+            while j >= 0 and re.match(r"^\s+@", lines[j]):
+                start = j
+                j -= 1
+            method_starts.append(start)
+
+    if not method_starts:
+        return text, []
+
+    header = "\n".join(lines[: method_starts[0]])
+
+    methods = []
+    for idx, start in enumerate(method_starts):
+        end = method_starts[idx + 1] if idx + 1 < len(method_starts) else len(lines)
+        method_text = "\n".join(lines[start:end])
+        name_match = re.search(r"def\s+(test_\w+)", method_text)
+        name = name_match.group(1) if name_match else f"unknown_{idx}"
+        methods.append((method_text, name))
+
+    return header, methods
+
+
+def _has_only_api_version_param(method_text):
+    """Return True if the client call has no parameter other than ``api_version``."""
+    call_match = re.search(
+        r"self\.client\.[^(]+\((.*?)\)",
+        method_text,
+        re.DOTALL,
+    )
+    if not call_match:
+        return False
+
+    args_text = call_match.group(1).strip()
+    if not args_text:
+        return True
+
+    args_text = re.sub(r"#[^\n]*", "", args_text)
+    keywords = re.findall(r"(\w+)\s*=", args_text)
+    if not keywords:
+        return False
+    return all(k == "api_version" for k in keywords)
+
+
 def transform_test_content(text):
-    """Apply all transformations to a generated test file."""
-    # @pytest.mark.skip -> @pytest.mark.live_test_only
-    text = re.sub(
+    """Apply all transformations to a generated test file.
+
+    1. Keep only test methods whose client call has no parameter other than
+       ``api_version``.
+    2. Replace ``@pytest.mark.skip`` with ``@pytest.mark.live_test_only``.
+    3. Add an assertion (``assert result …`` or ``assert response …``) based on
+       the variable actually used in the test method.
+    4. Remove ``# ...`` placeholder comment lines.
+    5. Strip the ``api_version`` keyword argument from client calls.
+
+    Returns the transformed text, or *None* if no qualifying test methods exist.
+    """
+    header, methods = _split_test_file(text)
+
+    kept = []
+    for method_text, method_name in methods:
+        if not _has_only_api_version_param(method_text):
+            continue
+
+        # @pytest.mark.skip -> @pytest.mark.live_test_only (method-level)
+        method_text = re.sub(
+            r"^(\s*)@pytest\.mark\.skip.*$",
+            r"\1@pytest.mark.live_test_only",
+            method_text,
+            flags=re.MULTILINE,
+        )
+
+        # Determine correct variable name for assertion
+        if re.search(r"\bresult\s*=", method_text):
+            var_name = "result"
+        else:
+            var_name = "response"
+
+        # Replace check-logic comment with assertion
+        method_text = re.sub(
+            r"^(?P<indent>\s*)# please add some check logic here by yourself\s*(?:\r?\n)",
+            lambda m, v=var_name: f"{m.group('indent')}assert {v} is not None\n",
+            method_text,
+            flags=re.MULTILINE | re.IGNORECASE,
+        )
+
+        # Remove "# ..." placeholder lines
+        method_text = method_text.replace("# ...\n", "")
+
+        # Strip api_version= argument from client calls
+        method_text = re.sub(
+            r"\(\s*api_version\s*=\s*[\"'][^\"']*[\"']\s*,?\s*\)",
+            "()",
+            method_text,
+        )
+
+        kept.append(method_text)
+
+    if not kept:
+        return None
+
+    # Transform class-level @pytest.mark.skip in the header
+    header = re.sub(
         r"^(\s*)@pytest\.mark\.skip.*$",
         r"\1@pytest.mark.live_test_only",
-        text,
+        header,
         flags=re.MULTILINE,
     )
 
-    # "# please add some check logic here by yourself" -> assert result == []
-    text = re.sub(
-        r"^(?P<indent>\s*)# please add some check logic here by yourself\s*(?:\r?\n)",
-        lambda m: f"{m.group('indent')}assert result == []\n",
-        text,
-        flags=re.MULTILINE | re.IGNORECASE,
-    )
-
-    # Remove "# ..." comment lines
-    text = text.replace("# ...\n", "")
-
-    # Strip api_version= from list*() calls
-    text = re.sub(
-        r"(?P<prefix>(?:[A-Za-z_][\w.]*\.)?list[\w]*)\(\s*api_version\s*=\s*[^,)]*(?:,\s*)?\s*\)",
-        lambda m: f"{m.group('prefix')}()",
-        text,
-        flags=re.IGNORECASE | re.MULTILINE,
-    )
-
-    return text
+    return header + "\n" + "\n".join(kept)
 
 
 def copy_and_transform_tests(sdk_dir):
@@ -159,11 +250,11 @@ def copy_and_transform_tests(sdk_dir):
 
     updated_files = []
 
-    # Process conftest.py first
+    # Process conftest.py first (no method filtering)
     conftest_src = os.path.join(gen_dir, "conftest.py")
     if os.path.isfile(conftest_src):
         conftest_dest = os.path.join(tests_dir, "conftest.py")
-        _process_file(conftest_src, conftest_dest)
+        _process_file(conftest_src, conftest_dest, filter_methods=False)
         updated_files.append(conftest_dest)
 
     # Find all .py files except conftest.py
@@ -174,11 +265,6 @@ def copy_and_transform_tests(sdk_dir):
 
     copied = 0
     for src_file in sources:
-        # Only copy files that contain "list" (case-insensitive)
-        content = src_file.read_text(encoding="utf-8")
-        if not re.search(r"list", content, re.IGNORECASE):
-            continue
-
         rel_path = src_file.relative_to(gen_dir)
         base_no_ext = rel_path.stem
         parent = rel_path.parent
@@ -189,23 +275,35 @@ def copy_and_transform_tests(sdk_dir):
             dest_rel = str(parent / f"{base_no_ext}_test.py")
 
         dest_file = os.path.join(tests_dir, dest_rel)
-        _process_file(str(src_file), dest_file)
-        updated_files.append(dest_file)
-        copied += 1
+        if _process_file(str(src_file), dest_file):
+            updated_files.append(dest_file)
+            copied += 1
 
     if copied == 0:
-        die("No generated tests contained list* method instances.")
+        die("No generated tests had qualifying test methods (only api_version parameter).")
 
     return updated_files
 
 
-def _process_file(src, dest):
-    """Read src, transform, write to dest."""
+def _process_file(src, dest, filter_methods=True):
+    """Read *src*, transform, write to *dest*.
+
+    When *filter_methods* is True (the default), only test methods whose client
+    call has no parameter other than ``api_version`` are kept.
+    Returns True if the file was actually written.
+    """
     text = pathlib.Path(src).read_text(encoding="utf-8")
-    text = transform_test_content(text)
+    if filter_methods:
+        transformed = transform_test_content(text)
+        if transformed is None:
+            log(f"Skipped (no qualifying methods): {os.path.basename(src)}")
+            return False
+    else:
+        transformed = text
     os.makedirs(os.path.dirname(dest), exist_ok=True)
-    pathlib.Path(dest).write_text(text, encoding="utf-8")
+    pathlib.Path(dest).write_text(transformed, encoding="utf-8")
     log(f"Processed: {os.path.basename(dest)}")
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -249,6 +347,13 @@ def setup_venv(worktree_dir):
             )
         else:
             log(f"Warning: eng/tools/azure-sdk-tools not found at {eng_tools}, skipping.")
+
+    # Always install azure-mgmt-resource and black (needed for tests and formatting)
+    log("Installing azure-mgmt-resource and black...")
+    subprocess.run(
+        [venv_pip, "install", "azure-mgmt-resource", "black"],
+        check=True,
+    )
 
     return venv_python, venv_pip
 
