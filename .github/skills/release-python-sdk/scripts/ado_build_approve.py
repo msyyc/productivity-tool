@@ -319,6 +319,17 @@ def main() -> None:
             print("  Aborting — will not approve release stages.")
             sys.exit(EXIT_BUILD_FAILED)
 
+        # Check if the target release stage has already failed
+        if args.target:
+            target_failed = [
+                s for s in release_stages
+                if args.target in s["name"] and s.get("result") == "failed"
+            ]
+            if target_failed:
+                print(f"\n  ❌ Target release stage failed: {target_failed[0]['name']}")
+                print("  Aborting — release already failed before approval.")
+                sys.exit(EXIT_BUILD_FAILED)
+
         if all_build_done:
             print("\n  ✅ All build stages completed successfully!")
             break

@@ -430,6 +430,36 @@ class TestMain:
     @patch("ado_build_approve.get_timeline")
     @patch("ado_build_approve.get_build_info")
     @patch("ado_build_approve.get_az_token", return_value="fake-token")
+    def test_target_release_stage_failure_aborts(self, mock_token, mock_build, mock_timeline, mock_sleep, monkeypatch, capsys):
+        """Exit 1 when the target release stage fails during monitoring, even if build stages are still running."""
+        mock_build.return_value = self._mock_build_info()
+        records = [
+            {"id": "s1", "type": "Stage", "name": "Build", "state": "inProgress", "result": ""},
+            {"id": "s2", "type": "Stage", "name": "Integration", "state": "pending", "result": ""},
+            {"id": "s3", "type": "Stage", "name": "Release: azure-mgmt-frontdoor", "state": "completed", "result": "failed"},
+            {"id": "s4", "type": "Stage", "name": "Release: azure-mgmt-dns", "state": "pending", "result": ""},
+        ]
+        mock_timeline.return_value = records
+        monkeypatch.setattr(
+            "sys.argv",
+            [
+                "prog",
+                "https://dev.azure.com/azure-sdk/internal/_build/results?buildId=123",
+                "--target",
+                "azure-mgmt-frontdoor",
+            ],
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+        assert exc_info.value.code == EXIT_BUILD_FAILED
+        mock_sleep.assert_not_called()
+        out = capsys.readouterr().out
+        assert "Target release stage failed" in out
+
+    @patch("ado_build_approve.time.sleep")
+    @patch("ado_build_approve.get_timeline")
+    @patch("ado_build_approve.get_build_info")
+    @patch("ado_build_approve.get_az_token", return_value="fake-token")
     def test_polls_until_build_done(self, mock_token, mock_build, mock_timeline, mock_sleep, monkeypatch, capsys):
         """Poll multiple times until build stages complete, then exit 0."""
         mock_build.return_value = self._mock_build_info()
