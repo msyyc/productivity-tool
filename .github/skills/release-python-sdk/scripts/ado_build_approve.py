@@ -75,19 +75,10 @@ def get_az_token() -> str:
     """Get an Azure DevOps access token using the az CLI."""
     try:
         result = subprocess.run(
-            [
-                "az",
-                "account",
-                "get-access-token",
-                "--resource",
-                "499b84ac-1321-427f-aa17-267ca6975798",
-                "--query",
-                "accessToken",
-                "-o",
-                "tsv",
-            ],
+            "az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv",
             capture_output=True,
             text=True,
+            shell=True,
         )
     except FileNotFoundError:
         raise RuntimeError(

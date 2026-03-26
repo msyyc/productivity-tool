@@ -313,11 +313,13 @@ class TestMain:
         out = capsys.readouterr().out
         assert "Dry-run" in out
 
+    @patch("ado_build_approve.poll_pypi", return_value=("1.0.0", "https://pypi.org/project/azure-mgmt-frontdoor/"))
+    @patch("ado_build_approve.check_pypi", return_value=(None, "https://pypi.org/project/azure-mgmt-frontdoor/"))
     @patch("ado_build_approve.approve_stages")
     @patch("ado_build_approve.get_timeline")
     @patch("ado_build_approve.get_build_info")
     @patch("ado_build_approve.get_az_token", return_value="fake-token")
-    def test_target_filters_approvals(self, mock_token, mock_build, mock_timeline, mock_approve, monkeypatch, capsys):
+    def test_target_filters_approvals(self, mock_token, mock_build, mock_timeline, mock_approve, mock_check_pypi, mock_poll_pypi, monkeypatch, capsys):
         """--target filters to only the matching release stage."""
         mock_build.return_value = self._mock_build_info()
         mock_timeline.return_value = self._mock_timeline_records()
