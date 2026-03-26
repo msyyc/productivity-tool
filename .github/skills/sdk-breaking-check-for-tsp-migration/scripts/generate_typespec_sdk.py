@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -55,6 +56,50 @@ def strip_mgmt_prefix(package_name):
     return name
 
 
+def extract_versions_from_main_tsp(spec_folder, spec_dir):
+    """Extract API version strings from the enum Versions block in main.tsp.
+
+    Returns versions in declaration order (earliest to latest).
+    """
+    main_tsp = os.path.join(spec_dir, spec_folder, "main.tsp")
+    if not os.path.isfile(main_tsp):
+        print(f"Warning: main.tsp not found at {main_tsp}")
+        return []
+
+    with open(main_tsp, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Match the enum Versions { ... } block
+    enum_match = re.search(r"enum\s+Versions\s*\{(.*?)\}", content, re.DOTALL)
+    if not enum_match:
+        print("Warning: No 'enum Versions' block found in main.tsp")
+        return []
+
+    block = enum_match.group(1)
+    versions = re.findall(r':\s*"(\d{4}-\d{2}-\d{2}(?:-preview)?)"', block)
+    return versions
+
+
+def resolve_api_version(swagger_api_versions_str, tsp_versions):
+    """Determine which apiVersion to use for TypeSpec generation.
+
+    Returns (version, source) where source is 'swagger' or 'typespec-latest'.
+    Returns (None, None) when swagger_api_versions_str is None (feature not used).
+    """
+    if swagger_api_versions_str is None:
+        return None, None
+
+    swagger_versions = [v.strip() for v in swagger_api_versions_str.split(",") if v.strip()]
+
+    if len(swagger_versions) == 1 and swagger_versions[0] in tsp_versions:
+        return swagger_versions[0], "swagger"
+
+    if tsp_versions:
+        return tsp_versions[-1], "typespec-latest"
+
+    return None, None
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate TypeSpec SDK and code report")
     parser.add_argument("package_name", help="Full package name (e.g. azure-mgmt-securityinsights)")
@@ -62,6 +107,9 @@ def main():
     parser.add_argument("--spec-dir", required=True, help="Path to spec repo (or worktree)")
     parser.add_argument("--sdk-dir", required=True, help="Path to SDK repo (or worktree)")
     parser.add_argument("--pr-number", default=None, help="Spec PR number (fetch PR head instead of origin/main)")
+    parser.add_argument(
+        "--swagger-api-versions", default=None, help="Comma-separated swagger API versions from Step 1.5"
+    )
     args = parser.parse_args()
 
     package_name = args.package_name
@@ -162,6 +210,22 @@ def main():
             return
         print("Warning: report not found in cached commit, regenerating...")
 
+    # 2.5. Resolve apiVersion from swagger versions + main.tsp
+    api_version = None
+    api_version_source = None
+    if args.swagger_api_versions is not None:
+        print("\n" + "=" * 60)
+        print("Step 2.5: Resolve apiVersion")
+        print("=" * 60)
+        tsp_versions = extract_versions_from_main_tsp(spec_folder, rest_repo)
+        print(f"TypeSpec versions in main.tsp: {tsp_versions}")
+        print(f"Swagger API versions: {args.swagger_api_versions}")
+        api_version, api_version_source = resolve_api_version(args.swagger_api_versions, tsp_versions)
+        if api_version:
+            print(f"Resolved apiVersion: {api_version} (source: {api_version_source})")
+        else:
+            print("Warning: Could not resolve apiVersion")
+
     # 3. Create generate_input_typespec.json
     print("\n" + "=" * 60)
     print("Step 3: Create generate_input_typespec.json")
@@ -174,6 +238,8 @@ def main():
         "enableChangelog": False,
         "relatedTypeSpecProjectFolder": [spec_folder],
     }
+    if api_version:
+        input_data["apiVersion"] = api_version
     input_path = os.path.join(venv_path, "generate_input_typespec.json")
     with open(input_path, "w", encoding="utf-8") as f:
         json.dump(input_data, f, indent=2)
@@ -283,6 +349,9 @@ def main():
     print("=== SESSION_STATE ===")
     print(f"typespec_code_report={report_dst.replace(os.sep, '/')}")
     print(f"head_sha={head_sha}")
+    if api_version:
+        print(f"api_version={api_version}")
+        print(f"api_version_source={api_version_source}")
     print("=" * 60)
     print("\nDone! TypeSpec SDK generated, committed, and pushed.")
 

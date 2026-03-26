@@ -30,6 +30,7 @@ Typical wall-clock times observed per step (may vary by package size and network
 |------|-----------------|-------|
 | Step 0 | ~8 min | Dominated by git worktree checkout of large repos + venv setup |
 | Step 1 | ~10 sec | Fast git log search |
+| Step 1.5 | ~5 sec | Reads readme.md via git show (no checkout needed) |
 | Step 2 | ~3 min | Swagger SDK generation + code report |
 | Step 3 | ~4.5 min | TypeSpec SDK generation + code report |
 | Step 4 | ~15 sec | Report comparison + changelog generation |
@@ -155,6 +156,42 @@ INSERT OR REPLACE INTO session_state (key, value) VALUES
 - The pre-migration commit SHA and date
 - A browsable link to the swagger spec folder: `https://github.com/Azure/azure-rest-api-specs/tree/<pre_migration_commit>/<swagger_spec_folder>` (this points to the `resource-manager` folder which exists at the pre-migration commit, unlike the TypeSpec folder path)
 
+### Step 1.5: Extract Swagger Default Tag and API Version
+
+Extract the default tag from the swagger `readme.md` at the pre-migration commit and determine which API versions are used under that tag.
+
+**Read session state:**
+
+```sql
+SELECT key, value FROM session_state
+WHERE key IN ('package_name', 'pre_migration_commit', 'swagger_spec_folder', 'spec_worktree');
+```
+
+**Run the bundled script:**
+
+```
+python <skill-dir>/scripts/extract_swagger_api_version.py <package_name> --spec-dir <spec_worktree> --commit <pre_migration_commit> --swagger-spec-folder <swagger_spec_folder>
+```
+
+The script reads `readme.md` via `git show` (no worktree checkout needed). It finds the default `tag:` in the first non-conditional yaml block, then extracts the `input-file` list for that tag and parses API versions from the file paths.
+
+**Parse the `=== SESSION_STATE ===` block** to extract:
+- `default_tag` — the default swagger tag name (e.g., `package-2025-11`)
+- `swagger_api_versions` — comma-separated sorted unique API versions (e.g., `2025-11-01` or `2019-11-01,2021-06-01,2025-03-01`)
+
+**Store to SQL session state:**
+
+```sql
+INSERT OR REPLACE INTO session_state (key, value) VALUES
+  ('default_tag', '<parsed value>'),
+  ('swagger_api_versions', '<parsed value>');
+```
+
+**Report to user:**
+- The default tag name
+- If a single API version: report the version (e.g., "API version: `2025-11-01`")
+- If multiple API versions: report all of them (e.g., "Default tag `package-2025-03` contains multiple API versions: `2019-11-01` / `2021-06-01` / `2025-03-01`")
+
 ### Step 2: Generate Swagger SDK and Code Report
 
 Generate the Python SDK from the pre-migration Swagger spec and produce a breaking change code report.
@@ -198,19 +235,22 @@ Generate the Python SDK from the post-migration TypeSpec spec and produce a brea
 
 ```sql
 SELECT key, value FROM session_state
-WHERE key IN ('package_name', 'spec_folder', 'spec_worktree', 'sdk_worktree', 'github_username', 'pr_number');
+WHERE key IN ('package_name', 'spec_folder', 'spec_worktree', 'sdk_worktree', 'github_username',
+              'swagger_api_versions', 'pr_number');
 ```
 
 **Run the bundled script:**
 
+If `swagger_api_versions` exists in session state (from Step 1.5), append `--swagger-api-versions <swagger_api_versions>` to the command. This enables automatic apiVersion resolution: the script reads `main.tsp` in the TypeSpec folder, and if the swagger default tag has a single API version that also appears in the TypeSpec `enum Versions`, it uses that version; otherwise it uses the latest version from `enum Versions`. The resolved version is set as `"apiVersion"` in the generation input JSON.
+
 - **Package name mode** (no `pr_number` in session state):
   ```
-  python <skill-dir>/scripts/generate_typespec_sdk.py <package_name> <spec_folder> --spec-dir <spec_worktree> --sdk-dir <sdk_worktree>
+  python <skill-dir>/scripts/generate_typespec_sdk.py <package_name> <spec_folder> --spec-dir <spec_worktree> --sdk-dir <sdk_worktree> [--swagger-api-versions <swagger_api_versions>]
   ```
 
 - **PR mode** (when `pr_number` exists in session state):
   ```
-  python <skill-dir>/scripts/generate_typespec_sdk.py <package_name> <spec_folder> --spec-dir <spec_worktree> --sdk-dir <sdk_worktree> --pr-number <pr_number>
+  python <skill-dir>/scripts/generate_typespec_sdk.py <package_name> <spec_folder> --spec-dir <spec_worktree> --sdk-dir <sdk_worktree> --pr-number <pr_number> [--swagger-api-versions <swagger_api_versions>]
   ```
 
 In package name mode, the script checks out `origin/main`. In PR mode, it fetches `pull/<pr_number>/head` and checks out the PR's head commit instead. In both modes, it uses the latest commit that touched the service's spec folder for its cache key. It searches commit history for `generated from typespec:<head_sha>` and reuses the cached commit if found, skipping regeneration automatically. If the script reports a cache hit, Steps 4 and 5 can also be skipped since the spec has not changed since the last generation.
@@ -218,6 +258,8 @@ In package name mode, the script checks out `origin/main`. In PR mode, it fetche
 **Parse the `=== SESSION_STATE ===` block** to extract:
 - `typespec_code_report` — absolute path to `code_report_typespec.json`
 - `head_sha` — latest commit SHA that touched the service's spec folder
+- `api_version` — (optional) the resolved API version used for generation (e.g., `2025-11-01`)
+- `api_version_source` — (optional) `swagger` if matched from swagger default tag, or `typespec-latest` if using the latest version from main.tsp
 
 The script automatically commits with the message `generated from typespec:<head_sha>` (used for its internal cache detection on re-runs).
 
@@ -227,6 +269,10 @@ The script automatically commits with the message `generated from typespec:<head
 INSERT OR REPLACE INTO session_state (key, value) VALUES
   ('typespec_code_report', '<parsed value>'),
   ('head_sha', '<parsed value>');
+-- Only if present in output:
+INSERT OR REPLACE INTO session_state (key, value) VALUES
+  ('api_version', '<parsed value>'),
+  ('api_version_source', '<parsed value>');
 ```
 
 ### Step 4: Compare Reports and Generate Changelog
@@ -271,6 +317,8 @@ SELECT key, value FROM session_state
 WHERE key IN ('package_name', 'spec_folder', 'has_breaking_changes', 'sdk_package_path',
               'changelog_path', 'spec_worktree', 'spec_branch', 'github_username',
               'pre_migration_commit', 'swagger_spec_folder',
+              'default_tag', 'swagger_api_versions',
+              'api_version', 'api_version_source',
               'pr_number', 'pr_head_ref', 'pr_head_owner');
 ```
 
@@ -366,10 +414,21 @@ gh pr create --repo Azure/azure-sdk-for-python --head <github_username>:<sdk_bra
 ```
 
 The PR body (`<report>`) should contain the full breaking change analysis report, including:
+- **Spec source** (varies by input mode):
+  - **PR mode** (`pr_number` exists in session state): `Spec PR: https://github.com/Azure/azure-rest-api-specs/pull/<pr_number>` (link to the original spec PR the user provided)
+  - **Package name mode** (no `pr_number`): `TypeSpec folder: [<spec_folder>](https://github.com/Azure/azure-rest-api-specs/tree/main/<spec_folder>)` (link to the spec typespec folder containing `tspconfig.yaml`)
 - Pre-migration swagger source: `[<swagger_spec_folder> @ <pre_migration_commit[:8]>](https://github.com/Azure/azure-rest-api-specs/tree/<pre_migration_commit>/<swagger_spec_folder>)` (clickable link to browse the swagger files at the pre-migration commit)
+- **Swagger API version** (from `default_tag` and `swagger_api_versions` in session state):
+  - If `swagger_api_versions` contains a single version (no comma): `Swagger API version: <version> (default tag: <default_tag>)`
+  - If `swagger_api_versions` contains multiple versions (comma-separated): `Default tag \`<default_tag>\` contains multiple API versions: \`<v1>\` / \`<v2>\` / ...`
+  - If `swagger_api_versions` is empty or not set: omit this line
+- **TypeSpec generation apiVersion** (from `api_version` and `api_version_source` in session state):
+  - If `api_version_source` is `swagger`: `Generated with apiVersion: \`<api_version>\` (matched from swagger default tag)`
+  - If `api_version_source` is `typespec-latest`: `Generated with apiVersion: \`<api_version>\` (latest in TypeSpec enum Versions)`
+  - If `api_version` is not set: omit this line
 - Summary of classifications (accepted vs mitigated)
 - List of accepted breaking changes that will remain
-- The spec PR URL (if mitigations were created)
+- The spec mitigation PR URL (if mitigations were created)
 
 **Report to user:**
 - Summary of classifications (accepted vs mitigated)

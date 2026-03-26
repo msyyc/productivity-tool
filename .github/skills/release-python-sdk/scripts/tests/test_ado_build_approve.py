@@ -319,7 +319,9 @@ class TestMain:
     @patch("ado_build_approve.get_timeline")
     @patch("ado_build_approve.get_build_info")
     @patch("ado_build_approve.get_az_token", return_value="fake-token")
-    def test_target_filters_approvals(self, mock_token, mock_build, mock_timeline, mock_approve, mock_check_pypi, mock_poll_pypi, monkeypatch, capsys):
+    def test_target_filters_approvals(
+        self, mock_token, mock_build, mock_timeline, mock_approve, mock_check_pypi, mock_poll_pypi, monkeypatch, capsys
+    ):
         """--target filters to only the matching release stage."""
         mock_build.return_value = self._mock_build_info()
         mock_timeline.return_value = self._mock_timeline_records()
@@ -430,13 +432,21 @@ class TestMain:
     @patch("ado_build_approve.get_timeline")
     @patch("ado_build_approve.get_build_info")
     @patch("ado_build_approve.get_az_token", return_value="fake-token")
-    def test_target_release_stage_failure_aborts(self, mock_token, mock_build, mock_timeline, mock_sleep, monkeypatch, capsys):
+    def test_target_release_stage_failure_aborts(
+        self, mock_token, mock_build, mock_timeline, mock_sleep, monkeypatch, capsys
+    ):
         """Exit 1 when the target release stage fails during monitoring, even if build stages are still running."""
         mock_build.return_value = self._mock_build_info()
         records = [
             {"id": "s1", "type": "Stage", "name": "Build", "state": "inProgress", "result": ""},
             {"id": "s2", "type": "Stage", "name": "Integration", "state": "pending", "result": ""},
-            {"id": "s3", "type": "Stage", "name": "Release: azure-mgmt-frontdoor", "state": "completed", "result": "failed"},
+            {
+                "id": "s3",
+                "type": "Stage",
+                "name": "Release: azure-mgmt-frontdoor",
+                "state": "completed",
+                "result": "failed",
+            },
             {"id": "s4", "type": "Stage", "name": "Release: azure-mgmt-dns", "state": "pending", "result": ""},
         ]
         mock_timeline.return_value = records

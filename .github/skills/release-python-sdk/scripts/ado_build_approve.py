@@ -182,11 +182,17 @@ def approve_stages(token: str, org: str, project: str, approvals: list[dict]) ->
 
 
 def check_pypi(package_name: str) -> tuple[str | None, str]:
-    """Check PyPI for the latest version of a package.
+    """Check PyPI for the latest version of a package (including pre-releases).
+
+    The ``info.version`` field from the PyPI JSON API only reflects the latest
+    *stable* release.  For pre-release (beta / rc) publishes we need to inspect
+    ``releases`` and pick the most-recently-uploaded version instead.
 
     Returns:
         Tuple of (version or None, pypi_url).
     """
+    from packaging.version import Version
+
     pypi_url = f"https://pypi.org/project/{package_name}/"
     api_url = f"https://pypi.org/pypi/{package_name}/json"
     try:
@@ -194,6 +200,13 @@ def check_pypi(package_name: str) -> tuple[str | None, str]:
         req.add_header("Accept", "application/json")
         with urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read())
+            releases = data.get("releases", {})
+            if releases:
+                # Pick the highest version (including pre-releases)
+                versions = [Version(v) for v in releases if releases[v]]
+                if versions:
+                    return str(max(versions)), pypi_url
+            # Fallback to info.version (stable only)
             version = data.get("info", {}).get("version")
             return version, pypi_url
     except (HTTPError, URLError, json.JSONDecodeError):
@@ -321,10 +334,7 @@ def main() -> None:
 
         # Check if the target release stage has already failed
         if args.target:
-            target_failed = [
-                s for s in release_stages
-                if args.target in s["name"] and s.get("result") == "failed"
-            ]
+            target_failed = [s for s in release_stages if args.target in s["name"] and s.get("result") == "failed"]
             if target_failed:
                 print(f"\n  ❌ Target release stage failed: {target_failed[0]['name']}")
                 print("  Aborting — release already failed before approval.")
