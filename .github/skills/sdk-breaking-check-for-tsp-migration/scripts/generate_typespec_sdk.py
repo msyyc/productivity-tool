@@ -194,18 +194,30 @@ def main():
     else:
         print(f"Warning: tsp-client directory not found at {tsp_client_dir}")
 
-    # 5. Run sdk_generator
+    # 5. Clear root node_modules to avoid stale dependency issues
     print("\n" + "=" * 60)
-    print("Step 5: Run sdk_generator")
+    print("Step 5: Clear root node_modules")
+    print("=" * 60)
+    root_node_modules = os.path.join(sdk_repo, "node_modules")
+    if os.path.isdir(root_node_modules):
+        print(f"Removing {root_node_modules}...")
+        shutil.rmtree(root_node_modules)
+        print("Removed.")
+    else:
+        print("No root node_modules found, skipping.")
+
+    # 6. Run sdk_generator
+    print("\n" + "=" * 60)
+    print("Step 6: Run sdk_generator")
     print("=" * 60)
     run_cmd(
         venv_cmd(activate, "sdk_generator .venv/generate_input_typespec.json .venv/generate_output.json"),
         cwd=sdk_repo,
     )
 
-    # 6. Parse generate_output.json
+    # 7. Parse generate_output.json
     print("\n" + "=" * 60)
-    print("Step 6: Parse generate_output.json")
+    print("Step 7: Parse generate_output.json")
     print("=" * 60)
     output_path = os.path.join(venv_path, "generate_output.json")
     with open(output_path, "r", encoding="utf-8") as f:
@@ -231,9 +243,9 @@ def main():
         print(f"Error: Package directory not found at {pkg_dir}")
         sys.exit(1)
 
-    # 7. Run tox breaking change report
+    # 8. Run tox breaking change report
     print("\n" + "=" * 60)
-    print("Step 7: Run breaking change code report")
+    print("Step 8: Run breaking change code report")
     print("=" * 60)
     tox_dir = os.path.join(pkg_dir, ".tox")
     if os.path.isdir(tox_dir):
@@ -244,9 +256,9 @@ def main():
         cwd=pkg_dir,
     )
 
-    # 8. Rename code_report.json -> code_report_typespec.json
+    # 9. Rename code_report.json -> code_report_typespec.json
     print("\n" + "=" * 60)
-    print("Step 8: Rename code_report.json -> code_report_typespec.json")
+    print("Step 9: Rename code_report.json -> code_report_typespec.json")
     print("=" * 60)
     report_src = os.path.join(pkg_dir, "code_report.json")
     report_dst = os.path.join(pkg_dir, "code_report_typespec.json")
@@ -256,9 +268,9 @@ def main():
     else:
         print(f"Warning: code_report.json not found at {report_src}")
 
-    # 9. Git status and commit
+    # 10. Git status and commit
     print("\n" + "=" * 60)
-    print("Step 9: Git status and commit")
+    print("Step 10: Git status and commit")
     print("=" * 60)
     run_cmd("git status", cwd=sdk_repo)
     run_cmd("git add .", cwd=sdk_repo)

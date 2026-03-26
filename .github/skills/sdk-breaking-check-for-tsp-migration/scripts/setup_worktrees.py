@@ -142,7 +142,8 @@ def main():
     if os.path.isdir(spec_worktree):
         print(f"Worktree already exists at {spec_worktree}, skipping creation")
         run_cmd(
-            "git checkout . && git clean -fd && git checkout origin/main && git pull origin main", cwd=spec_worktree
+            "git checkout . && git clean -fd && git checkout origin/main && git pull --no-edit origin main",
+            cwd=spec_worktree,
         )
     else:
         run_cmd("git fetch origin main", cwd=spec_repo)
@@ -157,6 +158,15 @@ def main():
     print("=" * 60)
     if os.path.isdir(sdk_worktree):
         print(f"Worktree already exists at {sdk_worktree}, skipping creation")
+        run_cmd("git checkout . && git clean -fd", cwd=sdk_worktree)
+        run_cmd(f"git checkout {sdk_branch}", cwd=sdk_worktree, check=False)
+        # Sync with remote branch if it exists on the fork
+        result = run_cmd(f"git ls-remote --heads {username} {sdk_branch}", cwd=sdk_worktree, check=False)
+        if result.stdout.strip():
+            print(f"Syncing with {username}/{sdk_branch}...")
+            run_cmd(f"git pull --no-edit {username} {sdk_branch}", cwd=sdk_worktree)
+        # Pull latest from origin main
+        run_cmd("git pull --no-edit origin main", cwd=sdk_worktree)
     else:
         run_cmd("git fetch origin main", cwd=sdk_repo)
         run_cmd(

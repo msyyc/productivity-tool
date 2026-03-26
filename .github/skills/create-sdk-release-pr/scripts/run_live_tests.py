@@ -546,6 +546,7 @@ def _extract_failures(lines):
         short_match = re.match(r"^FAILED\s+(\S+?)(?:\s+-\s+(.+))?$", line)
         if short_match:
             test_name = short_match.group(1)
+
             # Only add if we didn't already capture this test from a full block.
             # Short summary uses "path::Class::method", full block uses "Class.method";
             # normalise separators before comparing.

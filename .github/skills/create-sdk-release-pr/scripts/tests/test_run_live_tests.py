@@ -152,7 +152,8 @@ class TestFindSdkDir:
 
 class TestSplitTestFile:
     def test_splits_methods_with_decorators(self):
-        text = textwrap.dedent("""\
+        text = textwrap.dedent(
+            """\
             import pytest
 
             class TestFoo:
@@ -163,7 +164,8 @@ class TestSplitTestFile:
                 @pytest.mark.skip
                 def test_beta(self):
                     pass
-        """)
+        """
+        )
         header, methods = _split_test_file(text)
         assert "import pytest" in header
         assert "class TestFoo:" in header
@@ -178,23 +180,27 @@ class TestSplitTestFile:
         assert methods == []
 
     def test_async_methods(self):
-        text = textwrap.dedent("""\
+        text = textwrap.dedent(
+            """\
             class TestAsync:
                 async def test_one(self):
                     pass
-        """)
+        """
+        )
         header, methods = _split_test_file(text)
         assert len(methods) == 1
         assert methods[0][1] == "test_one"
 
     def test_multiple_decorators(self):
-        text = textwrap.dedent("""\
+        text = textwrap.dedent(
+            """\
             class TestDeco:
                 @decorator_a
                 @decorator_b
                 def test_multi(self):
                     pass
-        """)
+        """
+        )
         header, methods = _split_test_file(text)
         assert len(methods) == 1
         assert "@decorator_a" in methods[0][0]
@@ -206,7 +212,7 @@ class TestSplitTestFile:
 
 class TestHasOnlyApiVersionParam:
     def test_no_params(self):
-        text = '    result = self.client.operations.list()'
+        text = "    result = self.client.operations.list()"
         assert _has_only_api_version_param(text) is True
 
     def test_only_api_version(self):
@@ -230,7 +236,8 @@ class TestHasOnlyApiVersionParam:
 
 
 class TestTransformTestContent:
-    SAMPLE_TEST = textwrap.dedent("""\
+    SAMPLE_TEST = textwrap.dedent(
+        """\
         import pytest
         from devtools_testutils import AzureMgmtRecordedTestCase
 
@@ -241,7 +248,8 @@ class TestTransformTestContent:
                 response = self.client.operations.list(api_version="2024-01-01")
                 # please add some check logic here by yourself
                 # ...
-    """)
+    """
+    )
 
     def test_replaces_skip_with_live_test_only(self):
         result = transform_test_content(self.SAMPLE_TEST)
@@ -264,37 +272,44 @@ class TestTransformTestContent:
         assert "self.client.operations.list()" in result
 
     def test_returns_none_when_no_qualifying_methods(self):
-        text = textwrap.dedent("""\
+        text = textwrap.dedent(
+            """\
             class TestFoo:
                 def test_create(self):
                     result = self.client.resources.create(name="test", resource={})
-        """)
+        """
+        )
         assert transform_test_content(text) is None
 
     def test_uses_result_variable_name(self):
-        text = textwrap.dedent("""\
+        text = textwrap.dedent(
+            """\
             class TestFoo:
                 def test_list(self):
                     result = self.client.operations.list()
                     # please add some check logic here by yourself
-        """)
+        """
+        )
         result = transform_test_content(text)
         assert "assert result is not None" in result
 
     def test_uses_len_assertion_for_list_comprehension_result(self):
-        text = textwrap.dedent("""\
+        text = textwrap.dedent(
+            """\
             class TestFoo:
                 def test_list(self):
                     response = self.client.operations.list()
                     result = [r for r in response]
                     # please add some check logic here by yourself
-        """)
+        """
+        )
         result = transform_test_content(text)
         assert "assert len(result) >= 0" in result
         assert "assert result is not None" not in result
 
     def test_filters_out_non_qualifying_methods(self):
-        text = textwrap.dedent("""\
+        text = textwrap.dedent(
+            """\
             class TestFoo:
                 def test_list(self):
                     response = self.client.operations.list()
@@ -303,20 +318,23 @@ class TestTransformTestContent:
                 def test_create(self):
                     response = self.client.resources.create(name="test")
                     # please add some check logic here by yourself
-        """)
+        """
+        )
         result = transform_test_content(text)
         assert result is not None
         assert "test_list" in result
         assert "test_create" not in result
 
     def test_class_level_skip_replaced(self):
-        text = textwrap.dedent("""\
+        text = textwrap.dedent(
+            """\
             @pytest.mark.skip(reason="skip test")
             class TestFoo:
                 def test_list(self):
                     response = self.client.operations.list()
                     # please add some check logic here by yourself
-        """)
+        """
+        )
         result = transform_test_content(text)
         assert "@pytest.mark.live_test_only" in result
         assert "@pytest.mark.skip" not in result
@@ -331,14 +349,16 @@ class TestCopyAndTransformTests:
         gen = sdk_dir / "generated_tests"
         gen.mkdir(exist_ok=True)
         (gen / "test_operations.py").write_text(
-            textwrap.dedent("""\
+            textwrap.dedent(
+                """\
                 import pytest
 
                 class TestOps:
                     def test_list(self):
                         response = self.client.operations.list()
                         # please add some check logic here by yourself
-            """),
+            """
+            ),
             encoding="utf-8",
         )
 
@@ -370,12 +390,14 @@ class TestCopyAndTransformTests:
         gen.mkdir(exist_ok=True)
         (gen / "conftest.py").write_text("# conftest\nfixture = True\n", encoding="utf-8")
         (gen / "test_ops.py").write_text(
-            textwrap.dedent("""\
+            textwrap.dedent(
+                """\
                 class TestOps:
                     def test_list(self):
                         response = self.client.operations.list()
                         # please add some check logic here by yourself
-            """),
+            """
+            ),
             encoding="utf-8",
         )
 
@@ -389,11 +411,13 @@ class TestCopyAndTransformTests:
         gen = sdk_dir / "generated_tests"
         gen.mkdir(exist_ok=True)
         (gen / "test_ops.py").write_text(
-            textwrap.dedent("""\
+            textwrap.dedent(
+                """\
                 class TestOps:
                     def test_create(self):
                         response = self.client.resources.create(name="x", body={})
-            """),
+            """
+            ),
             encoding="utf-8",
         )
 
@@ -583,7 +607,7 @@ class TestExtractRootCause:
         block = [
             "    some preamble",
             "    x = foo()",
-            '    file.py:42: in test_bar',
+            "    file.py:42: in test_bar",
             ">       raise ValueError",
             "E       ValueError: bad value",
         ]
