@@ -335,7 +335,7 @@ Use the `task` tool with `agent_type: "general-purpose"` and `mode: "background"
 - The extracted latest changelog section (pasted inline)
 - Instruct the subagent to read the classification guide at `<skill-dir>/references/breaking-changes-guide.md` and follow the link inside to read the full guide
 - The `spec_folder` and `spec_worktree` paths (for searching TypeSpec type definitions)
-- The pre-migration swagger source: `<swagger_spec_folder> @ <pre_migration_commit>`
+- The pre-migration swagger source: `<swagger_spec_folder>@<pre_migration_commit>`
 
 The subagent must:
 
@@ -417,7 +417,7 @@ The PR body (`<report>`) should contain the full breaking change analysis report
 - **Spec source** (varies by input mode):
   - **PR mode** (`pr_number` exists in session state): `Spec PR: https://github.com/Azure/azure-rest-api-specs/pull/<pr_number>` (link to the original spec PR the user provided)
   - **Package name mode** (no `pr_number`): `TypeSpec folder: [<spec_folder>](https://github.com/Azure/azure-rest-api-specs/tree/main/<spec_folder>)` (link to the spec typespec folder containing `tspconfig.yaml`)
-- Pre-migration swagger source: `[<swagger_spec_folder> @ <pre_migration_commit[:8]>](https://github.com/Azure/azure-rest-api-specs/tree/<pre_migration_commit>/<swagger_spec_folder>)` (clickable link to browse the swagger files at the pre-migration commit)
+- Pre-migration swagger source: `[<swagger_spec_folder>@<pre_migration_commit[:8]>](https://github.com/Azure/azure-rest-api-specs/tree/<pre_migration_commit>/<swagger_spec_folder>)` (clickable link to browse the swagger files at the pre-migration commit)
 - **Swagger API version** (from `default_tag` and `swagger_api_versions` in session state):
   - If `swagger_api_versions` contains a single version (no comma): `Swagger API version: <version> (default tag: <default_tag>)`
   - If `swagger_api_versions` contains multiple versions (comma-separated): `Default tag \`<default_tag>\` contains multiple API versions: \`<v1>\` / \`<v2>\` / ...`
@@ -443,5 +443,5 @@ The PR body (`<report>`) should contain the full breaking change analysis report
 - If the script fails, show the full error output to the user.
 - Use forward slashes in all file paths.
 - All spec repo operations use the `spec_worktree` path, all SDK operations use the `sdk_worktree` path.
-- **PR body must be written to a temporary file** and passed via `gh pr create --body-file <file>` instead of `--body "<text>"`. Inline `--body` causes shell encoding corruption — backtick-escaped sequences like `` \`vault\` `` get interpreted as control characters (`\v` → vertical tab, `\a` → bell, `\e` → escape, etc.).
+- **PR body must be written to a temporary file avoiding PowerShell string processing**, then passed via `gh pr create --body-file <file>` instead of `--body "<text>"`. PowerShell interprets backticks (`` ` ``) as escape characters, corrupting markdown code spans even inside file-writing commands: `` `azure` `` becomes `\u0007zure` (`` `a ``→bell), `` `blob` `` becomes backspace+`lob` (`` `b ``→backspace), etc. The corruption is intermittent — it only triggers when the character after a backtick is one of PowerShell's special escape letters (`a`, `b`, `e`, `f`, `n`, `r`, `t`, `v`, `0`). **Safe method:** Use the `create` tool to write the body file directly (bypasses PowerShell entirely), then run `gh pr create --body-file <path>`. Never use `Set-Content`, `Out-File`, `>`, heredocs, or inline `--body` for PR body text.
 - **Pre-migration swagger source link**: Use `swagger_spec_folder` from session state (output by both Step 1 and Step 2) to construct a browsable tree URL: `https://github.com/Azure/azure-rest-api-specs/tree/<pre_migration_commit>/<swagger_spec_folder>`. This points to the `resource-manager` folder which exists at the pre-migration commit, unlike the TypeSpec `spec_folder` path.
