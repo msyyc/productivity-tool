@@ -22,3 +22,7 @@
 - **create release issue**: run `python release_issue_create.py --sdk-name <package-name> --tag <readme-tag>` to create a release request issue under Azure/sdk-release-request.
 - **update sdk version**: run `python update_sdk_version.py <pr-link> <sdk-repo-path> <version>` to update the version of an SDK package. It checks out the PR branch, updates `_version.py`, `CHANGELOG.md`, and `pyproject.toml`, then commits and pushes. Use a version containing `b` (e.g. `1.0.0b1`) for beta, otherwise it's treated as stable.
 - **clean repo**: run `git reset HEAD && git checkout . && git clean -fd && git checkout origin/main && git pull origin main` under the local repo to clean all the local changes and sync with remote main branch.
+
+## Rules
+
+- If you need to create scripts for some tasks, create them under `temp` folder and delete them after the task is done.
