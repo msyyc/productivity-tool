@@ -97,6 +97,22 @@ pip index versions <package-name>
 
 If the package is **not found on PyPI**, or the **only published version is `0.0.0`** (a placeholder, not a real release), inform the user that the package has never been released, so there are no existing consumers to break — breaking change validation is unnecessary. **Stop the workflow** unless the user explicitly asks to continue.
 
+**TypeSpec migration check:** Before creating worktrees, check whether the SDK package folder on the `main` branch of the local `azure-sdk-for-python` repo already contains a `tsp-location.yaml` file:
+
+```
+# Find the package folder and check for tsp-location.yaml
+# The package folder is typically at sdk/<service>/<package-name>/
+git -C <sdk-repo-path> show main:sdk/**/<package-name>/tsp-location.yaml
+```
+
+Or more reliably, use `git ls-tree` to search:
+
+```
+git -C <sdk-repo-path> ls-tree -r --name-only main | Select-String "sdk/.*/<package-name>/tsp-location.yaml"
+```
+
+If `tsp-location.yaml` **already exists** in the package folder, the SDK has already been migrated to TypeSpec — there is no Swagger-to-TypeSpec migration to validate. Inform the user that the package is already TypeSpec-based and breaking change validation for migration is unnecessary. **Stop the workflow** unless the user explicitly asks to continue.
+
 **Prerequisites:** `azure-rest-api-specs` and `azure-sdk-for-python` must exist under the same parent directory (defaults to `C:/dev` on Windows, `/workspaces` on Linux).
 
 **Run the bundled script:**
