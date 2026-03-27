@@ -18,6 +18,7 @@ from ado_build_approve import (
     find_pending_approvals,
     format_duration,
     print_stages_table,
+    wait_for_release_stage,
     main,
     EXIT_OK,
     EXIT_BUILD_FAILED,
@@ -315,12 +316,13 @@ class TestMain:
 
     @patch("ado_build_approve.poll_pypi", return_value=("1.0.0", "https://pypi.org/project/azure-mgmt-frontdoor/"))
     @patch("ado_build_approve.check_pypi", return_value=(None, "https://pypi.org/project/azure-mgmt-frontdoor/"))
+    @patch("ado_build_approve.wait_for_release_stage", return_value=True)
     @patch("ado_build_approve.approve_stages")
     @patch("ado_build_approve.get_timeline")
     @patch("ado_build_approve.get_build_info")
     @patch("ado_build_approve.get_az_token", return_value="fake-token")
     def test_target_filters_approvals(
-        self, mock_token, mock_build, mock_timeline, mock_approve, mock_check_pypi, mock_poll_pypi, monkeypatch, capsys
+        self, mock_token, mock_build, mock_timeline, mock_approve, mock_wait, mock_check_pypi, mock_poll_pypi, monkeypatch, capsys
     ):
         """--target filters to only the matching release stage."""
         mock_build.return_value = self._mock_build_info()
@@ -341,6 +343,8 @@ class TestMain:
         approvals = call_args[3]  # 4th positional arg
         assert len(approvals) == 1
         assert approvals[0]["stage_name"] == "Release: azure-mgmt-frontdoor"
+        # wait_for_release_stage should have been called with target
+        mock_wait.assert_called_once()
 
     @patch("ado_build_approve.get_timeline")
     @patch("ado_build_approve.get_build_info")
@@ -497,3 +501,105 @@ class TestMain:
             main()
         assert exc_info.value.code == EXIT_OK
         assert mock_sleep.call_count == 1
+
+
+# ── wait_for_release_stage ──────────────────────────────────────────────
+
+
+class TestWaitForReleaseStage:
+    @patch("ado_build_approve.time.sleep")
+    @patch("ado_build_approve.get_timeline")
+    def test_succeeds_when_stage_completes(self, mock_timeline, mock_sleep):
+        from ado_build_approve import wait_for_release_stage
+
+        mock_timeline.return_value = [
+            {"type": "Stage", "name": "Release: azure-mgmt-foo", "state": "completed", "result": "succeeded"},
+        ]
+        result = wait_for_release_stage("token", "org", "proj", 123, "azure-mgmt-foo", 5)
+        assert result is True
+        mock_sleep.assert_not_called()
+
+    @patch("ado_build_approve.time.sleep")
+    @patch("ado_build_approve.get_timeline")
+    def test_returns_false_on_stage_failure(self, mock_timeline, mock_sleep):
+        from ado_build_approve import wait_for_release_stage
+
+        mock_timeline.return_value = [
+            {"type": "Stage", "name": "Release: azure-mgmt-foo", "state": "completed", "result": "failed"},
+        ]
+        result = wait_for_release_stage("token", "org", "proj", 123, "azure-mgmt-foo", 5)
+        assert result is False
+
+    @patch("ado_build_approve.RELEASE_STAGE_TIMEOUT", 0)
+    @patch("ado_build_approve.time.sleep")
+    @patch("ado_build_approve.get_timeline")
+    def test_timeout_returns_false(self, mock_timeline, mock_sleep):
+        from ado_build_approve import wait_for_release_stage
+
+        mock_timeline.return_value = [
+            {"type": "Stage", "name": "Release: azure-mgmt-foo", "state": "inProgress", "result": ""},
+        ]
+        result = wait_for_release_stage("token", "org", "proj", 123, "azure-mgmt-foo", 5)
+        assert result is False
+
+    @patch("ado_build_approve.time.sleep")
+    @patch("ado_build_approve.get_timeline")
+    def test_polls_until_complete(self, mock_timeline, mock_sleep):
+        from ado_build_approve import wait_for_release_stage
+
+        in_progress = [
+            {"type": "Stage", "name": "Release: azure-mgmt-foo", "state": "inProgress", "result": ""},
+        ]
+        completed = [
+            {"type": "Stage", "name": "Release: azure-mgmt-foo", "state": "completed", "result": "succeeded"},
+        ]
+        mock_timeline.side_effect = [in_progress, completed]
+        result = wait_for_release_stage("token", "org", "proj", 123, "azure-mgmt-foo", 5)
+        assert result is True
+        assert mock_sleep.call_count == 1
+
+
+# ── ado_api retry ───────────────────────────────────────────────────────
+
+
+class TestAdoApiRetry:
+    @patch("ado_build_approve.time.sleep")
+    @patch("ado_build_approve.urlopen")
+    def test_retries_on_503(self, mock_urlopen, mock_sleep):
+        from urllib.error import HTTPError
+
+        error = HTTPError("https://example.com", 503, "Service Unavailable", {}, None)
+        error.read = lambda: b"Unavailable"
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = b'{"ok": true}'
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        mock_urlopen.side_effect = [error, mock_resp]
+        result = ado_api("token", "https://example.com/api")
+        assert result == {"ok": True}
+        assert mock_sleep.call_count == 1
+
+    @patch("ado_build_approve.time.sleep")
+    @patch("ado_build_approve.urlopen")
+    def test_raises_after_max_retries(self, mock_urlopen, mock_sleep):
+        from urllib.error import HTTPError
+
+        error = HTTPError("https://example.com", 503, "Service Unavailable", {}, None)
+        error.read = lambda: b"Unavailable"
+        mock_urlopen.side_effect = [error, error, error]
+
+        with pytest.raises(RuntimeError, match="failed after"):
+            ado_api("token", "https://example.com/api")
+
+    @patch("ado_build_approve.urlopen")
+    def test_no_retry_on_401(self, mock_urlopen):
+        from urllib.error import HTTPError
+
+        error = HTTPError("https://example.com", 401, "Unauthorized", {}, None)
+        error.read = lambda: b"Access denied"
+        mock_urlopen.side_effect = error
+
+        with pytest.raises(RuntimeError, match="401"):
+            ado_api("bad-token", "https://example.com/api")

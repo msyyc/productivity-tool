@@ -29,6 +29,9 @@ from urllib.error import HTTPError, URLError
 DEFAULT_POLL_INTERVAL = 30  # seconds
 PYPI_POLL_INTERVAL = 30  # seconds
 PYPI_POLL_TIMEOUT = 600  # 10 minutes
+RELEASE_STAGE_TIMEOUT = 1800  # 30 minutes
+ADO_API_MAX_RETRIES = 3
+ADO_API_RETRY_DELAY = 30  # seconds
 
 # Exit codes
 EXIT_OK = 0
@@ -90,18 +93,35 @@ def get_az_token() -> str:
 
 
 def ado_api(token: str, url: str, method: str = "GET", body: str | None = None) -> dict:
-    """Call an Azure DevOps REST API endpoint."""
-    req = Request(url, method=method)
-    req.add_header("Authorization", f"Bearer {token}")
-    req.add_header("Content-Type", "application/json")
-    if body:
-        req.data = body.encode("utf-8")
-    try:
-        with urlopen(req) as resp:
-            return json.loads(resp.read())
-    except HTTPError as e:
-        error_body = e.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"API {method} {url} returned {e.code}: {error_body}")
+    """Call an Azure DevOps REST API endpoint with retry on transient errors."""
+    last_err = None
+    for attempt in range(1, ADO_API_MAX_RETRIES + 1):
+        req = Request(url, method=method)
+        req.add_header("Authorization", f"Bearer {token}")
+        req.add_header("Content-Type", "application/json")
+        if body:
+            req.data = body.encode("utf-8")
+        try:
+            with urlopen(req) as resp:
+                return json.loads(resp.read())
+        except (HTTPError, URLError) as e:
+            is_http = isinstance(e, HTTPError)
+            status = e.code if is_http else None
+            is_transient = (is_http and status in (502, 503, 504)) or (not is_http)
+            if is_transient:
+                last_err = e
+                if attempt < ADO_API_MAX_RETRIES:
+                    print(
+                        f"    ⚠️  Transient error ({e}), retrying in {ADO_API_RETRY_DELAY}s (attempt {attempt}/{ADO_API_MAX_RETRIES})..."
+                    )
+                    time.sleep(ADO_API_RETRY_DELAY)
+                    continue
+                break
+            if is_http:
+                error_body = e.read().decode("utf-8", errors="replace")
+                raise RuntimeError(f"API {method} {url} returned {e.code}: {error_body}")
+            raise
+    raise RuntimeError(f"API {method} {url} failed after {ADO_API_MAX_RETRIES} retries: {last_err}")
 
 
 def get_build_info(token: str, org: str, project: str, build_id: int) -> dict:
@@ -221,7 +241,7 @@ def poll_pypi(package_name: str, previous_version: str | None) -> tuple[str | No
     """
     start = time.time()
     pypi_url = f"https://pypi.org/project/{package_name}/"
-    print(f"\n[Step 7] Polling PyPI for '{package_name}' (timeout {PYPI_POLL_TIMEOUT}s)...")
+    print(f"\n[Step 8] Polling PyPI for '{package_name}' (timeout {PYPI_POLL_TIMEOUT}s)...")
     if previous_version:
         print(f"  Current version on PyPI: {previous_version}")
 
@@ -235,6 +255,53 @@ def poll_pypi(package_name: str, previous_version: str | None) -> tuple[str | No
 
     print("  ⚠️  Timed out waiting for new version on PyPI.")
     return None, pypi_url
+
+
+def wait_for_release_stage(
+    token: str,
+    org: str,
+    project: str,
+    build_id: int,
+    target: str,
+    poll_interval: int,
+) -> bool:
+    """Wait for the target release stage to complete in ADO.
+
+    Returns True if the stage completed successfully, False otherwise.
+    """
+    print(f"\n[Step 7] Waiting for release stage '{target}' to complete in ADO (timeout {RELEASE_STAGE_TIMEOUT}s)...")
+    start = time.time()
+
+    while time.time() - start < RELEASE_STAGE_TIMEOUT:
+        records = get_timeline(token, org, project, build_id)
+        stages = get_stages(records)
+        _, release_stages = classify_stages(stages)
+
+        target_stage = next((s for s in release_stages if target in s["name"]), None)
+        if target_stage is None:
+            elapsed = format_duration(time.time() - start)
+            print(f"  [{elapsed}] Target stage not found yet, retrying...")
+            time.sleep(poll_interval)
+            continue
+
+        state = target_stage.get("state", "unknown")
+        result = target_stage.get("result", "")
+
+        if state == "completed":
+            if result == "succeeded":
+                elapsed = format_duration(time.time() - start)
+                print(f"  ✅ Release stage completed successfully ({elapsed}).")
+                return True
+            else:
+                print(f"  ❌ Release stage completed with result: {result}")
+                return False
+
+        elapsed = format_duration(time.time() - start)
+        print(f"  [{elapsed}] Stage state: {state}, waiting {poll_interval}s...")
+        time.sleep(poll_interval)
+
+    print(f"  ⚠️  Timed out waiting for release stage to complete.")
+    return False
 
 
 def format_duration(seconds: float) -> str:
@@ -381,7 +448,24 @@ def main() -> None:
 
     print(f"\n  Done! Approved {len(results)} release stage(s).")
 
-    # ----- Step 7: Verify on PyPI -----
+    # ----- Step 7: Wait for release stage to complete in ADO -----
+    if args.target:
+        stage_succeeded = wait_for_release_stage(
+            token,
+            org,
+            project,
+            build_id,
+            args.target,
+            args.poll_interval,
+        )
+        if not stage_succeeded:
+            print("\n=== RELEASE SUMMARY ===")
+            print(f"  ❌ Release stage for '{args.target}' did not complete successfully.")
+            print(f"  Check build: {args.url}")
+            print("=== END RELEASE SUMMARY ===")
+            sys.exit(EXIT_BUILD_FAILED)
+
+    # ----- Step 8: Verify on PyPI -----
     if args.target:
         pre_version, _ = check_pypi(args.target)
         new_version, pypi_url = poll_pypi(args.target, pre_version)
