@@ -322,7 +322,16 @@ class TestMain:
     @patch("ado_build_approve.get_build_info")
     @patch("ado_build_approve.get_az_token", return_value="fake-token")
     def test_target_filters_approvals(
-        self, mock_token, mock_build, mock_timeline, mock_approve, mock_wait, mock_check_pypi, mock_poll_pypi, monkeypatch, capsys
+        self,
+        mock_token,
+        mock_build,
+        mock_timeline,
+        mock_approve,
+        mock_wait,
+        mock_check_pypi,
+        mock_poll_pypi,
+        monkeypatch,
+        capsys,
     ):
         """--target filters to only the matching release stage."""
         mock_build.return_value = self._mock_build_info()
