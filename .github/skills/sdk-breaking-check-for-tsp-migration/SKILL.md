@@ -92,8 +92,10 @@ Create isolated git worktrees for the spec repo and SDK repo.
 **PyPI release check:** Before creating worktrees, verify the package has been published to PyPI:
 
 ```
-pip index versions <package-name>
+pip index versions <package-name> --pre
 ```
+
+The `--pre` flag is required because some packages only have pre-release versions (e.g., `1.0.0b1`), which `pip index versions` excludes by default.
 
 If the package is **not found on PyPI**, or the **only published version is `0.0.0`** (a placeholder, not a real release), inform the user that the package has never been released, so there are no existing consumers to break — breaking change validation is unnecessary. **Stop the workflow** unless the user explicitly asks to continue.
 
