@@ -47,7 +47,19 @@ INSERT OR REPLACE INTO session_state (key, value) VALUES
 
 ### Step 2: Trigger Pipeline
 
-Trigger the "SDK Generation - Python" pipeline (definitionId=7423):
+Trigger the "SDK Generation - Python" pipeline (definitionId=7423) using the helper script:
+
+```python
+import subprocess, json, sys
+sys.path.insert(0, "<skill-dir>/scripts")
+from build_pipeline_command import build_pipeline_command
+
+cmd = build_pipeline_command("<config_path>", "<release_type>", "<api_version>")
+result = subprocess.run(cmd, capture_output=True, text=True)
+output = json.loads(result.stdout)
+```
+
+Alternatively, you may run the equivalent `az` command directly — but each `key=value` after `--parameters` **must** be a separate token:
 
 ```
 az pipelines run --id 7423 --org https://dev.azure.com/azure-sdk --project internal --branch main `
@@ -60,7 +72,7 @@ az pipelines run --id 7423 --org https://dev.azure.com/azure-sdk --project inter
   --output json
 ```
 
-> **Important:** Each `key=value` pair must be a separate token. Do NOT wrap all parameters in a single quoted string — `az pipelines run` would treat the entire string as ConfigPath's value.
+> **Important:** Do NOT wrap all parameters in a single quoted string — `az pipelines run` would treat the entire string as ConfigPath's value.
 
 - `ConfigType=TypeSpec` is required for TypeSpec-based configs.
 - `ApiVersion` is required. Use the user-provided value, or the auto-detected value from Step 1.
