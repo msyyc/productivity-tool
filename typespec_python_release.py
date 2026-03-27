@@ -169,7 +169,13 @@ def save_spec_dev_dependencies(repo_path: Path) -> dict[str, str]:
 
     saved = {}
     dev_deps = package_data.get("devDependencies", {})
-    for pkg in ["@typespec/http-specs", "@azure-tools/azure-http-specs"]:
+    for pkg in [
+        "@typespec/http-specs",
+        "@azure-tools/azure-http-specs",
+        "@typespec/http-specs",
+        "@typespec/spector",
+        "@typespec/spec-api",
+    ]:
         if pkg in dev_deps:
             saved[pkg] = dev_deps[pkg]
 

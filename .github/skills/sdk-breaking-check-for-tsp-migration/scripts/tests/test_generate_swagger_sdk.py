@@ -47,7 +47,7 @@ class TestGenerateSwaggerMain:
     @patch("generate_swagger_sdk.os.path.exists")
     @patch("generate_swagger_sdk.os.path.isdir")
     @patch("generate_swagger_sdk.os.path.isfile")
-    @patch("builtins.open", create=True)
+    @patch("generate_swagger_sdk.open", create=True)
     def test_exits_when_no_readme_found(self, mock_open, mock_isfile, mock_isdir, mock_exists, mock_glob, mock_run_cmd):
         """main() should sys.exit(1) when no readme.python.md matches the package name."""
         mock_exists.return_value = True
