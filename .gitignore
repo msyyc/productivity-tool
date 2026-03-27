@@ -3,3 +3,4 @@ __pycache__/
 task_assistant/__pycache__/
 task_assistant/tasks.json
 task_assistant/annotations.json
+temp/
