@@ -8,20 +8,24 @@ When optimizing a CHANGELOG, **ONLY** make necessary updates that ensure the log
 
 ## Optimization Rules
 
-### 1. Operation Group Naming
+### 1. Naming Corrections
 
-Standardize the naming of operation groups for consistency.
+Correct misuse of "Model" for entities that are not models (e.g., operation groups, clients).
 
 #### 1.1 Added Operation Group
 
+The operation group class name is BigCamelCase (e.g., `PrivateLinkResourcesOperations`), but as a property of the client it appears in related snake_case (e.g., `private_link_resources`). Replace "model" with "operation group".
+
 **Before:**
 ```
-Added model ...Operations
+- Client `AttestationManagementClient` added operation group `private_link_resources`
+- Added model `PrivateLinkResourcesOperations`
 ```
 
 **After:**
 ```
-Added operation group ...Operations
+- Client `AttestationManagementClient` added operation group `private_link_resources`
+- Added operation group `PrivateLinkResourcesOperations`
 ```
 
 #### 1.2 Added Method
@@ -34,6 +38,20 @@ Model ...Operations added method `...`
 **After:**
 ```
 Operation group ...Operations added method `...`
+```
+
+#### 1.3 Client Naming
+
+When a `...Client` class is referred to as "Model", replace with "Client".
+
+**Before:**
+```
+Model `...Client` added parameter `...` in method `__init__`
+```
+
+**After:**
+```
+Client `...Client` added parameter `...` in method `__init__`
 ```
 
 ### 2. Parameter Default Value Changes
@@ -76,6 +94,11 @@ The following types of entries should be removed as they are not relevant for en
 2. **Internal property changes:**
    ```
    Model `...` deleted or renamed its instance variable `additional_properties`
+   ```
+
+3. **Async-to-sync changes on `Operations.list`:**
+   ```
+   Method `Operations.list` changed from `asynchronous` to `synchronous`
    ```
 
 ### 4. Parameter Renaming
