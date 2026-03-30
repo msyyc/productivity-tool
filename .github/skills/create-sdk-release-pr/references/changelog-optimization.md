@@ -93,7 +93,22 @@ When both insertion and deletion of parameters occur together, merge them into a
 `A` renamed its instance variable `B` to `C`
 ```
 
-### 5. Grouping Moved Instance Variables Under a New Container Property
+### 5. Renaming of `values`/`keys` Properties
+
+When a model deletes a property named `values` or `keys` and adds a corresponding `values_property` or `keys_property`, merge them into a single rename entry.
+
+**Before:**
+```
+   - Model `ExceptionEntry` deleted or renamed its instance variable `values`
+   - Model `ExceptionEntry` added property `values_property`
+```
+
+**After:**
+```
+   - Model `ExceptionEntry` renamed its instance variable `values` to `values_property`
+```
+
+### 6. Grouping Moved Instance Variables Under a New Container Property
 
 When a model introduces a new container property (commonly named `properties`) and multiple instance variables of that model are subsequently reported as "deleted or renamed", treat these as a structural move rather than separate deletions.
 
@@ -110,7 +125,7 @@ When a model introduces a new container property (commonly named `properties`) a
    - Model `A` moved instance variable `a`, `b` and `c` under property `properties`
 ```
 
-### 6. Hybrid Model Migration Note
+### 7. Hybrid Model Migration Note
 
 When a CHANGELOG contains one or more entries in the `### Breaking Changes` section of the form:
 
@@ -129,7 +144,7 @@ Rules:
 2. Do not add the note if it already exists (avoid duplicates).
 3. Preserve the original ordering of existing entries after inserting the note.
 
-### 7. Hybrid Operation Migration Note
+### 8. Hybrid Operation Migration Note
 
 When a method adds keyword-only `etag` and `match_condition` and (in the same CHANGELOG block) deletes or renames positional_or_keyword `if_match` and `if_none_match`, treat this as a single migration. Replace the individual add/remove lines with one concise entry. Also insert a migration note as the FIRST bullet under `### Breaking Changes`:
 
@@ -155,7 +170,7 @@ When only `if_match` is removed (without `if_none_match`):
    - Method `...` replaced positional_or_keyword ... `if_match` to keyword_only ... `etag`/`match_condition`
 ```
 
-### 8. Consolidate Unused List Models
+### 9. Consolidate Unused List Models
 
 When multiple `...List` models are reported as "deleted or renamed" (including models that only contain `next_link` and `value` — typical paging result wrappers; verify by checking the SDK code), replace the individual lines with a single entry and move it to the `### Other Changes` section:
 
@@ -176,7 +191,7 @@ When multiple `...List` models are reported as "deleted or renamed" (including m
   - Deleted model `SkuInformationList`/`SnapshotList`/`VolumeGroupList`/`VolumeList` which actually were not used by SDK users
 ```
 
-### 9. Group Parameter Kind Changes
+### 10. Group Parameter Kind Changes
 
 When multiple parameters of the same method change from `positional_or_keyword` to `keyword_only`, merge into a single entry:
 
