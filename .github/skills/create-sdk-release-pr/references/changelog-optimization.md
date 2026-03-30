@@ -116,9 +116,9 @@ When both insertion and deletion of parameters occur together, merge them into a
 `A` renamed its instance variable `B` to `C`
 ```
 
-### 5. Renaming of `values`/`keys` Properties
+### 5. Renaming of Properties That Conflict with Base Model Methods
 
-When a model deletes a property named `values` or `keys` and adds a corresponding `values_property` or `keys_property`, merge them into a single rename entry.
+When a model deletes a property that conflicts with base model method names and adds a corresponding property with `_property` suffix, merge them into a single rename entry. The conflicting names are: `keys`, `items`, `values`, `popitem`, `clear`, `update`, `setdefault`, `pop`, `get`, `copy`.
 
 **Before:**
 ```
