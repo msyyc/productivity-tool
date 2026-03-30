@@ -13,6 +13,7 @@ import glob
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -151,10 +152,12 @@ def main():
     print(f"Found {len(readme_files)} readme.python.md files, searching...")
 
     target_readme_dir = None
+    # Use word-boundary regex to avoid substring matches (e.g. azure-mgmt-compute vs azure-mgmt-computefleet)
+    pkg_pattern = re.compile(rf"package-name:\s*{re.escape(package_name)}\b", re.IGNORECASE)
     for readme_file in readme_files:
         with open(readme_file, "r", encoding="utf-8") as f:
             content = f.read()
-        if package_name in content:
+        if pkg_pattern.search(content):
             rel_path = os.path.relpath(readme_file, rest_repo).replace("\\", "/")
             target_readme_dir = os.path.dirname(rel_path)
             print(f"Match: {rel_path}")

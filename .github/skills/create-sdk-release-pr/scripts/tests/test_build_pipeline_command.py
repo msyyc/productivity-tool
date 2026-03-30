@@ -43,8 +43,7 @@ class TestBuildPipelineCommand:
         # Each token must be exactly one key=value pair (no spaces)
         for token in param_tokens:
             assert " " not in token, (
-                f"Parameter token contains a space — multiple params collapsed "
-                f"into one string: {token!r}"
+                f"Parameter token contains a space — multiple params collapsed " f"into one string: {token!r}"
             )
             assert "=" in token, f"Expected key=value format, got: {token!r}"
 
@@ -116,23 +115,17 @@ class TestInputValidation:
 
     def test_rejects_invalid_release_type(self):
         with pytest.raises(ValueError, match="release_type"):
-            build_pipeline_command(
-                "specification/foo/tspconfig.yaml", "preview", "2025-05-01"
-            )
+            build_pipeline_command("specification/foo/tspconfig.yaml", "preview", "2025-05-01")
 
     def test_rejects_empty_api_version(self):
         with pytest.raises(ValueError, match="api_version"):
-            build_pipeline_command(
-                "specification/foo/tspconfig.yaml", "beta", ""
-            )
+            build_pipeline_command("specification/foo/tspconfig.yaml", "beta", "")
 
 
 # ── SKILL.md validation ──────────────────────────────────────────────────
 
 
-SKILL_MD_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "..", "SKILL.md"
-)
+SKILL_MD_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "SKILL.md")
 
 
 class TestSkillMdInstructions:
@@ -154,9 +147,7 @@ class TestSkillMdInstructions:
     def test_config_type_documented(self):
         """ConfigType=TypeSpec must appear in the pipeline command."""
         block = self._extract_pipeline_code_block()
-        assert "ConfigType=TypeSpec" in block, (
-            "SKILL.md pipeline command is missing ConfigType=TypeSpec"
-        )
+        assert "ConfigType=TypeSpec" in block, "SKILL.md pipeline command is missing ConfigType=TypeSpec"
 
     def test_params_not_in_single_string(self):
         """The --parameters line must not have all values on the same line."""
@@ -167,13 +158,11 @@ class TestSkillMdInstructions:
                 # Count key=value pairs on this same line
                 pairs = re.findall(r"\w+=", stripped)
                 assert len(pairs) <= 1, (
-                    f"Multiple key=value params on the --parameters line risks "
-                    f"single-string quoting: {stripped!r}"
+                    f"Multiple key=value params on the --parameters line risks " f"single-string quoting: {stripped!r}"
                 )
 
     def test_quoting_warning_present(self):
         """SKILL.md must warn about not wrapping params in a single string."""
         assert "single quoted string" in self.content.lower() or "single string" in self.content.lower(), (
-            "SKILL.md should contain a warning about not wrapping "
-            "parameters in a single quoted string"
+            "SKILL.md should contain a warning about not wrapping " "parameters in a single quoted string"
         )

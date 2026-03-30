@@ -1,6 +1,7 @@
 """Tests for generate_swagger_sdk.py"""
 
 import os
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -36,6 +37,69 @@ class TestStripMgmtPrefix:
 
     def test_empty_string(self):
         assert strip_mgmt_prefix("") == ""
+
+
+# ---------------------------------------------------------------------------
+# Package-name regex matching (word-boundary to avoid substring matches)
+# ---------------------------------------------------------------------------
+def _build_pkg_pattern(package_name):
+    """Reproduce the regex from main() for unit testing."""
+    return re.compile(rf"package-name:\s*{re.escape(package_name)}\b", re.IGNORECASE)
+
+
+class TestPackageNameMatching:
+    """Verify that readme matching uses word boundaries to avoid substring hits."""
+
+    def test_exact_match(self):
+        pattern = _build_pkg_pattern("azure-mgmt-compute")
+        assert pattern.search("package-name: azure-mgmt-compute")
+
+    def test_no_substring_match(self):
+        """azure-mgmt-compute must NOT match azure-mgmt-computefleet."""
+        pattern = _build_pkg_pattern("azure-mgmt-compute")
+        assert pattern.search("package-name: azure-mgmt-computefleet") is None
+
+    def test_no_substring_match_scheduler(self):
+        """azure-mgmt-scheduler must NOT match azure-mgmt-schedulerx."""
+        pattern = _build_pkg_pattern("azure-mgmt-scheduler")
+        assert pattern.search("package-name: azure-mgmt-schedulerx") is None
+
+    def test_match_at_end_of_line(self):
+        pattern = _build_pkg_pattern("azure-mgmt-network")
+        assert pattern.search("package-name: azure-mgmt-network\n")
+
+    def test_match_with_no_space_after_colon(self):
+        pattern = _build_pkg_pattern("azure-mgmt-network")
+        assert pattern.search("package-name:azure-mgmt-network")
+
+    def test_match_with_multiple_spaces(self):
+        pattern = _build_pkg_pattern("azure-mgmt-network")
+        assert pattern.search("package-name:   azure-mgmt-network")
+
+    def test_case_insensitive(self):
+        pattern = _build_pkg_pattern("azure-mgmt-compute")
+        assert pattern.search("package-name: Azure-Mgmt-Compute")
+
+    def test_embedded_in_larger_file(self):
+        content = (
+            "```yaml $(python)\n"
+            "azure-arm: true\n"
+            "package-name: azure-mgmt-frontdoor\n"
+            "license-header: MICROSOFT_MIT\n"
+            "```\n"
+        )
+        pattern = _build_pkg_pattern("azure-mgmt-frontdoor")
+        assert pattern.search(content)
+
+    def test_no_match_different_package(self):
+        content = "package-name: azure-mgmt-network\n"
+        pattern = _build_pkg_pattern("azure-mgmt-compute")
+        assert pattern.search(content) is None
+
+    def test_longer_package_does_not_match_shorter(self):
+        """azure-mgmt-computefleet must NOT match content with azure-mgmt-compute."""
+        pattern = _build_pkg_pattern("azure-mgmt-computefleet")
+        assert pattern.search("package-name: azure-mgmt-compute") is None
 
 
 # ---------------------------------------------------------------------------

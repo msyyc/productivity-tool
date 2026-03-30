@@ -24,29 +24,32 @@ def build_pipeline_command(
     the entire value to be assigned to the first parameter (ConfigPath).
     """
     if not config_path or not config_path.endswith("tspconfig.yaml"):
-        raise ValueError(
-            f"config_path must end with 'tspconfig.yaml', got: {config_path!r}"
-        )
+        raise ValueError(f"config_path must end with 'tspconfig.yaml', got: {config_path!r}")
 
     if release_type not in ("beta", "stable"):
-        raise ValueError(
-            f"release_type must be 'beta' or 'stable', got: {release_type!r}"
-        )
+        raise ValueError(f"release_type must be 'beta' or 'stable', got: {release_type!r}")
 
     if not api_version:
         raise ValueError("api_version is required")
 
     return [
-        "az", "pipelines", "run",
-        "--id", str(PIPELINE_ID),
-        "--org", ORG,
-        "--project", PROJECT,
-        "--branch", branch,
+        "az",
+        "pipelines",
+        "run",
+        "--id",
+        str(PIPELINE_ID),
+        "--org",
+        ORG,
+        "--project",
+        PROJECT,
+        "--branch",
+        branch,
         "--parameters",
         f"ConfigPath={config_path}",
         "ConfigType=TypeSpec",
         f"SdkReleaseType={release_type}",
         f"CreatePullRequest={'true' if create_pr else 'false'}",
         f"ApiVersion={api_version}",
-        "--output", "json",
+        "--output",
+        "json",
     ]
