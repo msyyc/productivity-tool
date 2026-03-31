@@ -133,10 +133,18 @@ When a model deletes a property that conflicts with base model method names and 
 
 ### 6. Grouping Moved Instance Variables Under a New Container Property
 
-When a model introduces a new container property (commonly named `properties`) and multiple instance variables of that model are subsequently reported as "deleted or renamed", treat these as a structural move rather than separate deletions.
+When a model adds a new property and multiple instance variables of that model are subsequently reported as "deleted or renamed", treat these as a structural move rather than separate deletions.
+
+The container property is NOT always named `properties` — you MUST check the SDK source code (the `_models.py` file under the package directory, e.g. `<worktree_path>/sdk/<service-dir>/<package_name>/<package_namespace>/models/_models.py`) to:
+1. Identify which added property is the container (by inspecting the model class definition and seeing which property's type holds the moved variables).
+2. Find the type of that container property.
+3. Link the `Added model XXX` changelog entry (for the container type) with the `added property` and `deleted or renamed` entries to merge them all together.
+
+Additionally, the changelog often contains an `Added model XXX` entry for the type of the new container property. Merge the `Added model` entry into the consolidated line using `whose type is XXX`.
 
 **Before:**
 ```
+   - Added model `AProperties`
    - Model `A` added property `properties`
    - Model `A` deleted or renamed its instance variable `a`
    - Model `A` deleted or renamed its instance variable `b`
@@ -145,7 +153,20 @@ When a model introduces a new container property (commonly named `properties`) a
 
 **After:**
 ```
-   - Model `A` moved instance variable `a`, `b` and `c` under property `properties`
+   - Model `A` moved instance variable `a`, `b` and `c` under property `properties` whose type is `AProperties`
+```
+
+**Before (non-`properties` container name):**
+```
+   - Added model `AConfig`
+   - Model `A` added property `config`
+   - Model `A` deleted or renamed its instance variable `x`
+   - Model `A` deleted or renamed its instance variable `y`
+```
+
+**After:**
+```
+   - Model `A` moved instance variable `x` and `y` under property `config` whose type is `AConfig`
 ```
 
 ### 7. Hybrid Model Migration Note

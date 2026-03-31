@@ -171,39 +171,52 @@ INSERT OR REPLACE INTO session_state (key, value) VALUES
 
 ### Step 6: Update Changelog
 
-1. **Find the CHANGELOG.md** in the SDK package directory. The path is typically:
-   ```
-   <worktree_path>/sdk/<service-dir>/<package_name>/CHANGELOG.md
-   ```
-   Search for it if the exact path is unknown:
-   ```
-   Get-ChildItem -Path <worktree_path> -Recurse -Filter CHANGELOG.md | Where-Object { $_.FullName -like "*<package_name>*" }
-   ```
+This step is **independent** — delegate it to a **subagent** with all necessary context.
 
-2. **Read only the latest version section** of the CHANGELOG.md (everything from the first `## ` heading to the next `## ` heading).
+**Launch a subagent** with the following prompt (fill in the placeholders from session state):
 
-3. **Apply the optimization rules** from [references/changelog-optimization.md](references/changelog-optimization.md). Read that file for the full set of 9 rules covering:
-   - Operation group naming
-   - Parameter default value changes
-   - Entries to remove (overloads, internal properties)
-   - Parameter renaming
-   - Grouping moved instance variables
-   - Hybrid model migration note
-   - Hybrid operation migration note
-   - Consolidating unused list models
-   - Grouping parameter kind changes
+> You are optimizing the CHANGELOG.md for the Python SDK package `<package_name>`.
+>
+> **Worktree path:** `<worktree_path>`
+>
+> **Instructions:**
+>
+> 1. **Find the CHANGELOG.md** in the SDK package directory. The path is typically:
+>    ```
+>    <worktree_path>/sdk/<service-dir>/<package_name>/CHANGELOG.md
+>    ```
+>    Search for it if the exact path is unknown:
+>    ```
+>    Get-ChildItem -Path <worktree_path> -Recurse -Filter CHANGELOG.md | Where-Object { $_.FullName -like "*<package_name>*" }
+>    ```
+>
+> 2. **Read only the latest version section** of the CHANGELOG.md (everything from the first `## ` heading to the next `## ` heading).
+>
+> 3. **Read the optimization rules** from `<skill-dir>/references/changelog-optimization.md` and apply ALL rules to the latest version section. The rules cover:
+>    - Operation group naming corrections
+>    - Parameter default value changes
+>    - Entries to remove (overloads, internal properties)
+>    - Parameter renaming
+>    - Renaming of properties that conflict with base model methods
+>    - Grouping moved instance variables under a new container property (requires reading `_models.py` in the package to identify container types)
+>    - Hybrid model migration note
+>    - Hybrid operation migration note
+>    - Consolidating unused list models
+>    - Grouping parameter kind changes
+>
+> 4. **Write the updated CHANGELOG.md** using the edit tool.
+>
+> 5. **Commit and push:**
+>    ```
+>    cd <worktree_path>
+>    git add sdk/<service-dir>/<package_name>/CHANGELOG.md
+>    git commit -m "Optimize changelog for <package_name>"
+>    git push
+>    ```
+>
+> 6. **Return** a summary of all changelog changes made (what rules were applied and what was changed).
 
-4. **Write the updated CHANGELOG.md** using the edit tool.
-
-5. **Commit and push:**
-   ```
-   cd <worktree_path>
-   git add .
-   git commit -m "Optimize changelog for <package_name>"
-   git push
-   ```
-
-**Report to user:** summary of changelog changes made.
+**Report to user:** the summary returned by the subagent.
 
 ### Step 7: Run Live Tests
 
