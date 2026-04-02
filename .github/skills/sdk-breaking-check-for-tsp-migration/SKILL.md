@@ -346,19 +346,10 @@ If `has_breaking_changes` is `false`, report that no mitigations are needed and 
 
 Read the CHANGELOG.md at `changelog_path` and extract only the content under the **first** `##` version heading — everything from that heading up to (but not including) the next `##` heading, or to end-of-file if there is no next heading. This is the latest version section containing the breaking changes detected in Step 4. Store this extracted text for the subagent prompt.
 
-**Launch a subagent for breaking change analysis:**
+**Analyze breaking changes and generate mitigations:**
 
-Use the `task` tool with `agent_type: "general-purpose"` and `mode: "background"` to dispatch a subagent. Include in the prompt:
-
-- The extracted latest changelog section (pasted inline)
-- Instruct the subagent to read the classification guide at `<skill-dir>/references/breaking-changes-guide.md` and follow the link inside to read the full guide
-- The `spec_folder` and `spec_worktree` paths (for searching TypeSpec type definitions)
-- The pre-migration swagger source: `<swagger_spec_folder>@<pre_migration_commit>`
-
-The subagent must:
-
-1. Read the full breaking changes classification guide (following the reference link to the SDK repo or fetching from GitHub)
-2. For each breaking change item in the provided changelog section:
+1. Read the classification guide at `<skill-dir>/references/breaking-changes-guide.md` and follow the link inside to read the full guide
+2. For each breaking change item in the extracted changelog section:
    - Classify it using the guide's Action Matrix
    - **ACCEPT** → note it (no code change needed)
    - **MITIGATE** → search for the TypeSpec type definition in `<spec_worktree>/<spec_folder>/` and generate the appropriate `@@clientName` or `@@override` decorator
@@ -373,9 +364,9 @@ The subagent must:
      @@clientName(...);
      ```
    - Update `tspconfig.yaml` to use `client.tsp` as entry point if needed
-4. Return a structured summary listing each breaking change, its classification (ACCEPT/MITIGATE), and any mitigations applied
+4. Produce a structured summary listing each breaking change, its classification (ACCEPT/MITIGATE), and any mitigations applied
 
-**After the subagent completes**, use its classification summary to proceed with PR creation.
+Use this classification summary to proceed with PR creation.
 
 **Push spec mitigations** — the approach depends on whether a PR was provided:
 
