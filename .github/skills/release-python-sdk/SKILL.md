@@ -170,3 +170,4 @@ Build: <build_url>
 - If `ado_build_approve.py` exits with code 2 (configuration error, e.g. wrong --target), report the error and suggest the user verify the package name
 - Use forward slashes in all file paths passed to scripts
 - When a release fails, report the failure root cause and build URL to the user, then **stop**. Do NOT take deeper action such as triggering another pipeline, calling fix-up scripts (e.g., `update_sdk_version.py`), or attempting any automated remediation. Let the user decide next steps.
+- Always include the PyPI link with the specific released version (`https://pypi.org/project/<package_name>/<version>/`) in the final output if the package has been released to PyPI, regardless of whether the current run's PyPI verification succeeded or timed out.
