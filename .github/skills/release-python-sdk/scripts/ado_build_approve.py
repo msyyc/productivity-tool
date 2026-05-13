@@ -28,8 +28,8 @@ from urllib.error import HTTPError, URLError
 
 DEFAULT_POLL_INTERVAL = 30  # seconds
 PYPI_POLL_INTERVAL = 30  # seconds
-PYPI_POLL_TIMEOUT = 600  # 10 minutes
-RELEASE_STAGE_TIMEOUT = 1800  # 30 minutes
+PYPI_POLL_TIMEOUT = 300  # 5 minutes
+RELEASE_STAGE_TIMEOUT = 600  # 10 minutes
 ADO_API_MAX_RETRIES = 3
 ADO_API_RETRY_DELAY = 30  # seconds
 
@@ -202,17 +202,17 @@ def approve_stages(token: str, org: str, project: str, approvals: list[dict]) ->
 
 
 def check_pypi(package_name: str) -> tuple[str | None, str]:
-    """Check PyPI for the latest version of a package (including pre-releases).
+    """Check PyPI for the most-recently-uploaded version of a package.
 
     The ``info.version`` field from the PyPI JSON API only reflects the latest
-    *stable* release.  For pre-release (beta / rc) publishes we need to inspect
-    ``releases`` and pick the most-recently-uploaded version instead.
+    *stable* release, and picking ``max(versions)`` breaks for pre-releases
+    after a stable release (e.g. publishing ``1.0.0b2`` when ``1.0.0`` exists)
+    or hotfixes on older lines.  We therefore pick the version with the most
+    recent upload time across all files.
 
     Returns:
         Tuple of (version or None, pypi_url).
     """
-    from packaging.version import Version
-
     pypi_url = f"https://pypi.org/project/{package_name}/"
     api_url = f"https://pypi.org/pypi/{package_name}/json"
     try:
@@ -222,10 +222,14 @@ def check_pypi(package_name: str) -> tuple[str | None, str]:
             data = json.loads(resp.read())
             releases = data.get("releases", {})
             if releases:
-                # Pick the highest version (including pre-releases)
-                versions = [Version(v) for v in releases if releases[v]]
-                if versions:
-                    return str(max(versions)), pypi_url
+                # Pick the version whose newest file has the latest upload_time.
+                def latest_upload(files: list[dict]) -> str:
+                    return max((f.get("upload_time_iso_8601") or f.get("upload_time") or "") for f in files)
+
+                versions_with_files = [(v, latest_upload(files)) for v, files in releases.items() if files]
+                if versions_with_files:
+                    versions_with_files.sort(key=lambda x: x[1])
+                    return versions_with_files[-1][0], pypi_url
             # Fallback to info.version (stable only)
             version = data.get("info", {}).get("version")
             return version, pypi_url
@@ -236,8 +240,11 @@ def check_pypi(package_name: str) -> tuple[str | None, str]:
 def poll_pypi(package_name: str, previous_version: str | None) -> tuple[str | None, str]:
     """Poll PyPI until a new version appears or timeout is reached.
 
-    A "new" version is any version strictly greater than ``previous_version``
-    (or any version at all if the package was not on PyPI before).
+    A "new" version is any version different from ``previous_version``
+    (or any version at all if the package was not on PyPI before).  We do
+    NOT require it to be strictly greater because pre-releases published
+    after a stable version (e.g. ``1.0.0b2`` after ``1.0.0``) and hotfixes
+    on older release lines are both valid "new" releases.
 
     Returns:
         Tuple of (new_version or None, pypi_url).
@@ -248,15 +255,10 @@ def poll_pypi(package_name: str, previous_version: str | None) -> tuple[str | No
     if previous_version:
         print(f"  Current version on PyPI: {previous_version}")
 
-    from packaging.version import InvalidVersion, Version
-
     def is_newer(candidate: str) -> bool:
         if previous_version is None:
             return True
-        try:
-            return Version(candidate) > Version(previous_version)
-        except InvalidVersion:
-            return candidate != previous_version
+        return candidate != previous_version
 
     while time.time() - start < PYPI_POLL_TIMEOUT:
         version, pypi_url = check_pypi(package_name)
