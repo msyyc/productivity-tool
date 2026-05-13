@@ -32,7 +32,7 @@ python <skill-dir>/scripts/regen_sdk.py <sdk-name> <tag> [--work-dir C:/dev]
 The script performs, in order:
 
 1. **Pre-flight** — verify `azure-rest-api-specs` and `azure-sdk-for-python` exist under `--work-dir`, and that the SDK repo has a `.venv` folder. Raises if any are missing.
-2. **Sync swagger repo** — `git reset HEAD && git clean -fd && git checkout . && git checkout main && git reset --hard origin/main && git pull origin main`. Records the resulting HEAD SHA.
+2. **Sync swagger repo** — `git reset HEAD && git clean -fd && git checkout . && git checkout origin/main && git pull origin main`. Records the resulting HEAD SHA.
 3. **Sync SDK repo** — same clean/sync sequence on `azure-sdk-for-python`.
 4. **Find readme.md** — searches every `readme.python.md` under `<spec-repo>/specification/` for the SDK package name; uses the sibling `readme.md`. Errors if zero or multiple matches.
 5. **Write `<sdk-repo>/.venv/generate_input_swagger.json`:**
@@ -44,6 +44,7 @@ The script performs, in order:
      "runMode": "release",
      "repoHttpsUrl": "https://github.com/Azure/azure-rest-api-specs",
      "python_tag": "<tag>",
+     "sdkReleaseType": "stable",
      "enableChangelog": false,
      "relatedReadmeMdFiles": ["<readme_path>"]
    }

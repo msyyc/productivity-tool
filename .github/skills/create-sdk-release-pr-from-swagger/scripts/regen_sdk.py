@@ -130,6 +130,7 @@ def write_input_json(venv: Path, head_sha: str, tag: str, readme_path: str) -> P
         "runMode": "release",
         "repoHttpsUrl": "https://github.com/Azure/azure-rest-api-specs",
         "python_tag": tag,
+        "sdkReleaseType": "stable",
         "enableChangelog": False,
         "relatedReadmeMdFiles": [readme_path],
     }
