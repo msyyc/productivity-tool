@@ -61,7 +61,8 @@ The script performs, in order:
 
      - Regenerated with latest code generator tool
    ```
-8. **Branch, push, open PR** — branch `regen-<sdk-name>-YYYY-MM-DD`, force-push to `origin`, then `gh pr create` against `Azure/azure-sdk-for-python:main` with title `Regenerate <sdk-name> with latest code generator tool`.
+8. **Ensure `aiohttp` in `dev_requirements.txt`** — check the package's `dev_requirements.txt`; if `aiohttp` is missing (or the file does not exist), append it.
+9. **Branch, push, open PR** — branch `regen-<sdk-name>-YYYY-MM-DD`, force-push to `origin`, then `gh pr create` against `Azure/azure-sdk-for-python:main` with title `Regenerate <sdk-name> with latest code generator tool`.
 
 At the end the script emits a `=== SESSION_STATE === ... === END_SESSION_STATE ===` block with `head_sha`, `readme_path`, `pkg_dir`, `version_old`, `version_new`, `branch`, `pr_url`. Parse it and report the PR URL to the user.
 

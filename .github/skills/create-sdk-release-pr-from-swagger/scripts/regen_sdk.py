@@ -221,6 +221,29 @@ def bump_version_file(version_file: Path) -> tuple[str, str]:
     return old, new
 
 
+def ensure_aiohttp_in_dev_requirements(pkg_dir: Path) -> bool:
+    """Ensure `aiohttp` is listed in `<pkg_dir>/dev_requirements.txt`. Append it
+    if missing. Returns True if the file was modified."""
+    dev_req = pkg_dir / "dev_requirements.txt"
+    if not dev_req.is_file():
+        dev_req.write_text("aiohttp\n", encoding="utf-8")
+        return True
+    text = dev_req.read_text(encoding="utf-8")
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        # strip version specifiers / extras / markers
+        name = re.split(r"[<>=!~;\[\s]", line, 1)[0].strip().lower()
+        if name == "aiohttp":
+            return False
+    if text and not text.endswith("\n"):
+        text += "\n"
+    text += "aiohttp\n"
+    dev_req.write_text(text, encoding="utf-8")
+    return True
+
+
 def rewrite_changelog(changelog: Path, new_version: str) -> None:
     """Keep the date in the topmost `## <version> (<date>)` heading; replace the
     version with `new_version` and replace the section body with the regen note."""
@@ -349,6 +372,12 @@ def main() -> int:
     old, new = bump_version_file(version_file)
     rewrite_changelog(changelog, new)
     print(f"version: {old} -> {new}")
+
+    # 6b. ensure aiohttp in dev_requirements.txt
+    if ensure_aiohttp_in_dev_requirements(pkg_dir):
+        print("added aiohttp to dev_requirements.txt")
+    else:
+        print("aiohttp already in dev_requirements.txt")
 
     # 7. push & create PR
     branch, pr_url = push_and_create_pr(sdk_repo, sdk_name)
