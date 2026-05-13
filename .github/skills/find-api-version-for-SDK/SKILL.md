@@ -38,6 +38,8 @@ Parse that block and report to the user in this exact format:
 ```
 Package: <package> <resolved-version>
 
+PyPI history: https://pypi.org/project/<package>/#history
+
 API version(s): <comma-separated list>     # or: "Could not find api-version in the package"
 
 Open source code:

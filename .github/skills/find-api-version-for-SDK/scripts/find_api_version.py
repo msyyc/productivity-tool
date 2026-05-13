@@ -213,6 +213,7 @@ def main() -> int:
     print("=== SUMMARY ===")
     print(f"package: {package}")
     print(f"version: {resolved_version}")
+    print(f"pypi_history_url: https://pypi.org/project/{package}/#history")
     if api_versions:
         print(f"api_versions: {','.join(sorted(api_versions))}")
     else:
