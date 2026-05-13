@@ -16,6 +16,7 @@ Outputs a `=== SUMMARY ===` block at the end with:
 
 The whole flow is run in-process to be as fast as possible.
 """
+
 from __future__ import annotations
 
 import json
@@ -72,19 +73,28 @@ def pip_download(package: str, version: str, dest: Path) -> Path:
     dest.mkdir(parents=True, exist_ok=True)
     log(f"Downloading {package}=={version} into {dest}...")
     cmd = [
-        sys.executable, "-m", "pip", "download",
+        sys.executable,
+        "-m",
+        "pip",
+        "download",
         f"{package}=={version}",
-        "--no-deps", "--no-binary=:none:",
-        "--dest", str(dest),
+        "--no-deps",
+        "--no-binary=:none:",
+        "--dest",
+        str(dest),
     ]
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode != 0:
         # Retry allowing wheels (some packages publish only wheels).
         cmd = [
-            sys.executable, "-m", "pip", "download",
+            sys.executable,
+            "-m",
+            "pip",
+            "download",
             f"{package}=={version}",
             "--no-deps",
-            "--dest", str(dest),
+            "--dest",
+            str(dest),
         ]
         res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode != 0:

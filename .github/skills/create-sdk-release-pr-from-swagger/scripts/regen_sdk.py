@@ -8,6 +8,7 @@ Usage:
 Example:
     python regen_sdk.py azure-mgmt-frontdoor package-2024-05
 """
+
 from __future__ import annotations
 
 import argparse
@@ -26,6 +27,7 @@ VERSION_RE = re.compile(r'^(VERSION\s*[:=]\s*["\'])([^"\']+)(["\'])', re.MULTILI
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
+
 
 def run(cmd, cwd: Path, env=None, check: bool = True) -> subprocess.CompletedProcess:
     """Run a command and raise on failure with full output context."""
@@ -52,6 +54,7 @@ def run(cmd, cwd: Path, env=None, check: bool = True) -> subprocess.CompletedPro
 # step 1: pre-flight checks
 # ---------------------------------------------------------------------------
 
+
 def check_repos(work_dir: Path) -> tuple[Path, Path]:
     spec_repo = work_dir / "azure-rest-api-specs"
     sdk_repo = work_dir / "azure-sdk-for-python"
@@ -72,6 +75,7 @@ def check_venv(sdk_repo: Path) -> Path:
 # ---------------------------------------------------------------------------
 # step 2: find readme.md
 # ---------------------------------------------------------------------------
+
 
 def find_readme(spec_repo: Path, sdk_name: str) -> str:
     spec_root = spec_repo / "specification"
@@ -103,6 +107,7 @@ def find_readme(spec_repo: Path, sdk_name: str) -> str:
 # step 3: clean + sync repo
 # ---------------------------------------------------------------------------
 
+
 def clean_and_sync(repo: Path) -> str:
     subprocess.run(["git", "reset", "HEAD"], cwd=str(repo), check=False)
     subprocess.run(["git", "clean", "-fd"], cwd=str(repo), check=False)
@@ -116,6 +121,7 @@ def clean_and_sync(repo: Path) -> str:
 # ---------------------------------------------------------------------------
 # step 4: write generator input json
 # ---------------------------------------------------------------------------
+
 
 def write_input_json(venv: Path, head_sha: str, tag: str, readme_path: str) -> Path:
     payload = {
@@ -135,6 +141,7 @@ def write_input_json(venv: Path, head_sha: str, tag: str, readme_path: str) -> P
 # ---------------------------------------------------------------------------
 # step 5: install tooling + run generator inside the venv
 # ---------------------------------------------------------------------------
+
 
 def venv_bin(venv: Path) -> Path:
     if os.name == "nt":
@@ -172,6 +179,7 @@ def install_and_generate(sdk_repo: Path, venv: Path, input_json: Path) -> Path:
 # step 6: bump version + rewrite CHANGELOG
 # ---------------------------------------------------------------------------
 
+
 def locate_package(sdk_repo: Path, sdk_name: str) -> Path:
     candidates = list(sdk_repo.glob(f"sdk/*/{sdk_name}"))
     if not candidates:
@@ -208,7 +216,7 @@ def bump_version_file(version_file: Path) -> tuple[str, str]:
         raise LookupError(f"VERSION assignment not found in {version_file}")
     old = m.group(2)
     new = decrement_version(old)
-    new_text = VERSION_RE.sub(rf'\g<1>{new}\g<3>', text, count=1)
+    new_text = VERSION_RE.sub(rf"\g<1>{new}\g<3>", text, count=1)
     version_file.write_text(new_text, encoding="utf-8")
     return old, new
 
@@ -254,6 +262,7 @@ def rewrite_changelog(changelog: Path, new_version: str) -> None:
 # step 7: branch, push, open PR
 # ---------------------------------------------------------------------------
 
+
 def push_and_create_pr(sdk_repo: Path, sdk_name: str) -> tuple[str, str]:
     if not run(["git", "status", "--porcelain"], sdk_repo).stdout.strip():
         raise RuntimeError("No changes to commit in SDK repo after regeneration.")
@@ -268,12 +277,19 @@ def push_and_create_pr(sdk_repo: Path, sdk_name: str) -> tuple[str, str]:
 
     pr = run(
         [
-            "gh", "pr", "create",
-            "--repo", "Azure/azure-sdk-for-python",
-            "--base", "main",
-            "--head", branch,
-            "--title", title,
-            "--body", f"Regenerate `{sdk_name}` with latest code generator tool.",
+            "gh",
+            "pr",
+            "create",
+            "--repo",
+            "Azure/azure-sdk-for-python",
+            "--base",
+            "main",
+            "--head",
+            branch,
+            "--title",
+            title,
+            "--body",
+            f"Regenerate `{sdk_name}` with latest code generator tool.",
         ],
         sdk_repo,
     )
@@ -284,6 +300,7 @@ def push_and_create_pr(sdk_repo: Path, sdk_name: str) -> tuple[str, str]:
 # ---------------------------------------------------------------------------
 # entrypoint
 # ---------------------------------------------------------------------------
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
