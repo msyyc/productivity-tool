@@ -236,6 +236,9 @@ def check_pypi(package_name: str) -> tuple[str | None, str]:
 def poll_pypi(package_name: str, previous_version: str | None) -> tuple[str | None, str]:
     """Poll PyPI until a new version appears or timeout is reached.
 
+    A "new" version is any version strictly greater than ``previous_version``
+    (or any version at all if the package was not on PyPI before).
+
     Returns:
         Tuple of (new_version or None, pypi_url).
     """
@@ -245,9 +248,19 @@ def poll_pypi(package_name: str, previous_version: str | None) -> tuple[str | No
     if previous_version:
         print(f"  Current version on PyPI: {previous_version}")
 
+    from packaging.version import InvalidVersion, Version
+
+    def is_newer(candidate: str) -> bool:
+        if previous_version is None:
+            return True
+        try:
+            return Version(candidate) > Version(previous_version)
+        except InvalidVersion:
+            return candidate != previous_version
+
     while time.time() - start < PYPI_POLL_TIMEOUT:
         version, pypi_url = check_pypi(package_name)
-        if version and version != previous_version:
+        if version and is_newer(version):
             return version, pypi_url
         elapsed = format_duration(time.time() - start)
         print(f"  [{elapsed}] No new version yet, retrying in {PYPI_POLL_INTERVAL}s...")
@@ -377,6 +390,13 @@ def main() -> None:
         print("\n  ❌ Build has already failed. Nothing to approve.")
         sys.exit(EXIT_BUILD_FAILED)
 
+    # Capture the PyPI version BEFORE the release runs so Step 8 can detect
+    # a newly-published version even if PyPI indexes it before we get there.
+    pre_release_pypi_version: str | None = None
+    if args.target:
+        pre_release_pypi_version, _ = check_pypi(args.target)
+        print(f"  PyPI baseline for {args.target}: {pre_release_pypi_version or '(not on PyPI yet)'}")
+
     # ----- Step 4: Monitor build stages -----
     print(f"\n[Step 4] Monitoring build stages (polling every {args.poll_interval}s)...")
     start_time = time.time()
@@ -467,8 +487,7 @@ def main() -> None:
 
     # ----- Step 8: Verify on PyPI -----
     if args.target:
-        pre_version, _ = check_pypi(args.target)
-        new_version, pypi_url = poll_pypi(args.target, pre_version)
+        new_version, pypi_url = poll_pypi(args.target, pre_release_pypi_version)
 
         print("\n=== RELEASE SUMMARY ===")
         if new_version:
