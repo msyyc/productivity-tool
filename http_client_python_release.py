@@ -228,11 +228,74 @@ def update_peer_dependencies(package_dir: Path) -> None:
     print("  peerDependencies updated in package.json")
 
 
+def _bump_patch_version(ver: str) -> str:
+    """Bump the patch component of a semver string 'a.b.c' -> 'a.b.c+1'.
+
+    Preserves any pre-release/build suffix by only bumping the numeric patch.
+    """
+    match = re.match(r"^(\d+)\.(\d+)\.(\d+)(.*)$", ver)
+    if not match:
+        raise ValueError(f"Unexpected version format: {ver}")
+    major, minor, patch, suffix = match.groups()
+    return f"{major}.{minor}.{int(patch) + 1}{suffix}"
+
+
 def run_version_change(package_dir: Path) -> None:
     """Run the version change script."""
     print("\n[Step 5] Running version change script...")
 
+    package_json_path = package_dir / "package.json"
+
+    # Capture version before running change:version
+    with open(package_json_path, "r", encoding="utf-8") as f:
+        before_data = json.load(f)
+    version_before = before_data.get("version", "")
+
     run_command("npm run change:version", cwd=package_dir)
+
+    # Check whether version was updated
+    with open(package_json_path, "r", encoding="utf-8") as f:
+        after_data = json.load(f)
+    version_after = after_data.get("version", "")
+
+    if version_after != version_before:
+        print(f"  Version updated by change:version script: {version_before} -> {version_after}")
+        return
+
+    # Version was not updated; bump patch manually and update CHANGELOG.md
+    new_version = _bump_patch_version(version_before)
+    print(f"  Version not updated by change:version script; bumping {version_before} -> {new_version}")
+
+    after_data["version"] = new_version
+    with open(package_json_path, "w", encoding="utf-8") as f:
+        json.dump(after_data, f, indent=2)
+        f.write("\n")
+
+    changelog_path = package_dir / "CHANGELOG.md"
+    new_entry = (
+        f"## {new_version}\n\n"
+        "### Bump dependencies\n\n"
+        "-  Bump dependencies of `@typespec/*` and `@azure-tools/*` to latest versions\n\n"
+    )
+
+    if changelog_path.exists():
+        existing = changelog_path.read_text(encoding="utf-8")
+        lines = existing.splitlines(keepends=True)
+        # Insert new entry before the first existing version heading (## ...), if any
+        insert_idx = None
+        for i, line in enumerate(lines):
+            if line.startswith("## "):
+                insert_idx = i
+                break
+        if insert_idx is None:
+            new_content = existing.rstrip() + "\n\n" + new_entry
+        else:
+            new_content = "".join(lines[:insert_idx]) + new_entry + "".join(lines[insert_idx:])
+        changelog_path.write_text(new_content, encoding="utf-8")
+    else:
+        changelog_path.write_text("# Release History\n\n" + new_entry, encoding="utf-8")
+
+    print(f"  CHANGELOG.md updated with new entry for {new_version}")
 
 
 def build_and_commit(package_dir: Path) -> None:
