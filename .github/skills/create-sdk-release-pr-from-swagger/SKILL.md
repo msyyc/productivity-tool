@@ -18,15 +18,16 @@ Regenerate a Python SDK package from the swagger (azure-rest-api-specs) repo usi
 
 - **SDK package name** (required): e.g. `azure-mgmt-frontdoor`
 - **Tag** (required): swagger python tag, e.g. `package-2024-05`
+- **Release type** (optional): `stable` or `beta` — written to `sdkReleaseType` in the generator input. Defaults to `stable`. Ask the user if unsure.
 
-If either is missing, ask the user before continuing.
+If either of the required inputs is missing, ask the user before continuing.
 
 ## Workflow
 
 A single orchestrator script runs every step end-to-end. Any failure raises and the script exits non-zero — do not retry, just report the failure to the user.
 
 ```
-python <skill-dir>/scripts/regen_sdk.py <sdk-name> <tag> [--work-dir C:/dev]
+python <skill-dir>/scripts/regen_sdk.py <sdk-name> <tag> [--release-type stable|beta] [--work-dir C:/dev]
 ```
 
 The script performs, in order:
@@ -44,7 +45,7 @@ The script performs, in order:
      "runMode": "release",
      "repoHttpsUrl": "https://github.com/Azure/azure-rest-api-specs",
      "python_tag": "<tag>",
-     "sdkReleaseType": "stable",
+     "sdkReleaseType": "<stable|beta>",
      "enableChangelog": false,
      "relatedReadmeMdFiles": ["<readme_path>"]
    }

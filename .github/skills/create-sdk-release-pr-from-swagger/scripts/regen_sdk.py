@@ -123,14 +123,14 @@ def clean_and_sync(repo: Path) -> str:
 # ---------------------------------------------------------------------------
 
 
-def write_input_json(venv: Path, head_sha: str, tag: str, readme_path: str) -> Path:
+def write_input_json(venv: Path, head_sha: str, tag: str, readme_path: str, release_type: str) -> Path:
     payload = {
         "specFolder": "../azure-rest-api-specs",
         "headSha": head_sha,
         "runMode": "release",
         "repoHttpsUrl": "https://github.com/Azure/azure-rest-api-specs",
         "python_tag": tag,
-        "sdkReleaseType": "stable",
+        "sdkReleaseType": release_type,
         "enableChangelog": False,
         "relatedReadmeMdFiles": [readme_path],
     }
@@ -330,14 +330,21 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("sdk_name", help="e.g. azure-mgmt-frontdoor")
     parser.add_argument("tag", help="swagger python_tag, e.g. package-2024-05")
+    parser.add_argument(
+        "--release-type",
+        choices=["stable", "beta"],
+        default="stable",
+        help="sdkReleaseType value to write into generate_input_swagger.json (default: stable)",
+    )
     parser.add_argument("--work-dir", default="C:/dev", type=Path)
     args = parser.parse_args()
 
     work = args.work_dir.resolve()
     sdk_name = args.sdk_name
     tag = args.tag
+    release_type = args.release_type
 
-    print(f"=== regen {sdk_name} (tag={tag}) ===")
+    print(f"=== regen {sdk_name} (tag={tag}, release_type={release_type}) ===")
 
     # 1. pre-flight
     spec_repo, sdk_repo = check_repos(work)
@@ -357,7 +364,7 @@ def main() -> int:
     print(f"readme_path={readme_path}")
 
     # 4. write input json
-    input_json = write_input_json(venv, head_sha, tag, readme_path)
+    input_json = write_input_json(venv, head_sha, tag, readme_path, release_type)
     print(f"wrote {input_json}")
 
     # 5. install tooling + run generator inside venv
