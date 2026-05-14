@@ -279,10 +279,10 @@ def wait_for_release_stage(
     build_id: int,
     target: str,
     poll_interval: int,
-) -> bool:
+) -> str:
     """Wait for the target release stage to complete in ADO.
 
-    Returns True if the stage completed successfully, False otherwise.
+    Returns one of: "succeeded", "failed", "timeout".
     """
     print(f"\n[Step 7] Waiting for release stage '{target}' to complete in ADO (timeout {RELEASE_STAGE_TIMEOUT}s)...")
     start = time.time()
@@ -306,17 +306,17 @@ def wait_for_release_stage(
             if result == "succeeded":
                 elapsed = format_duration(time.time() - start)
                 print(f"  ✅ Release stage completed successfully ({elapsed}).")
-                return True
+                return "succeeded"
             else:
                 print(f"  ❌ Release stage completed with result: {result}")
-                return False
+                return "failed"
 
         elapsed = format_duration(time.time() - start)
         print(f"  [{elapsed}] Stage state: {state}, waiting {poll_interval}s...")
         time.sleep(poll_interval)
 
-    print(f"  ⚠️  Timed out waiting for release stage to complete.")
-    return False
+    print(f"  ⚠️  Timed out waiting for release stage to complete; will still check PyPI.")
+    return "timeout"
 
 
 def format_duration(seconds: float) -> str:
@@ -472,7 +472,7 @@ def main() -> None:
 
     # ----- Step 7: Wait for release stage to complete in ADO -----
     if args.target:
-        stage_succeeded = wait_for_release_stage(
+        stage_status = wait_for_release_stage(
             token,
             org,
             project,
@@ -480,12 +480,13 @@ def main() -> None:
             args.target,
             args.poll_interval,
         )
-        if not stage_succeeded:
+        if stage_status == "failed":
             print("\n=== RELEASE SUMMARY ===")
             print(f"  ❌ Release stage for '{args.target}' did not complete successfully.")
             print(f"  Check build: {args.url}")
             print("=== END RELEASE SUMMARY ===")
             sys.exit(EXIT_BUILD_FAILED)
+        # On "timeout", fall through to Step 8 — PyPI is the source of truth.
 
     # ----- Step 8: Verify on PyPI -----
     if args.target:
