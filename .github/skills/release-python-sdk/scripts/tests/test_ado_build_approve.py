@@ -525,7 +525,7 @@ class TestWaitForReleaseStage:
             {"type": "Stage", "name": "Release: azure-mgmt-foo", "state": "completed", "result": "succeeded"},
         ]
         result = wait_for_release_stage("token", "org", "proj", 123, "azure-mgmt-foo", 5)
-        assert result is True
+        assert result == "succeeded"
         mock_sleep.assert_not_called()
 
     @patch("ado_build_approve.time.sleep")
@@ -537,7 +537,7 @@ class TestWaitForReleaseStage:
             {"type": "Stage", "name": "Release: azure-mgmt-foo", "state": "completed", "result": "failed"},
         ]
         result = wait_for_release_stage("token", "org", "proj", 123, "azure-mgmt-foo", 5)
-        assert result is False
+        assert result == "failed"
 
     @patch("ado_build_approve.RELEASE_STAGE_TIMEOUT", 0)
     @patch("ado_build_approve.time.sleep")
@@ -549,7 +549,7 @@ class TestWaitForReleaseStage:
             {"type": "Stage", "name": "Release: azure-mgmt-foo", "state": "inProgress", "result": ""},
         ]
         result = wait_for_release_stage("token", "org", "proj", 123, "azure-mgmt-foo", 5)
-        assert result is False
+        assert result == "timeout"
 
     @patch("ado_build_approve.time.sleep")
     @patch("ado_build_approve.get_timeline")
@@ -564,7 +564,7 @@ class TestWaitForReleaseStage:
         ]
         mock_timeline.side_effect = [in_progress, completed]
         result = wait_for_release_stage("token", "org", "proj", 123, "azure-mgmt-foo", 5)
-        assert result is True
+        assert result == "succeeded"
         assert mock_sleep.call_count == 1
 
 
