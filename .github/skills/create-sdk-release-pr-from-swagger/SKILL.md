@@ -55,7 +55,7 @@ The script performs, in order:
    pip install -e eng/tools/azure-sdk-tools[ghtools]
    sdk_generator .venv/generate_input_swagger.json .venv/generate_output.json
    ```
-7. **Bump version & rewrite CHANGELOG** — `_version.py` `A.B.0` → `A.(B-1).1`. In `CHANGELOG.md`, keep the original date in the topmost heading and update the version to match `_version.py`; replace the section body with:
+7. **Bump version & rewrite CHANGELOG** (stable releases only) — `_version.py` `A.B.0` → `A.(B-1).1`. In `CHANGELOG.md`, keep the original date in the topmost heading and update the version to match `_version.py`; replace the section body with:
    ```
    ## <new_version> (<original_date>)
 
@@ -63,6 +63,7 @@ The script performs, in order:
 
      - Regenerated with latest code generator tool
    ```
+   For **beta** releases (`--release-type beta`), this step is skipped — version and changelog are left untouched.
 8. **Ensure `aiohttp` in `dev_requirements.txt`** — check the package's `dev_requirements.txt`; if `aiohttp` is missing (or the file does not exist), append it.
 9. **Branch, push, open PR** — branch `regen-<sdk-name>-YYYY-MM-DD`, force-push to `origin`, then `gh pr create` against `Azure/azure-sdk-for-python:main` with title `Regenerate <sdk-name> with latest code generator tool`.
 

@@ -371,15 +371,19 @@ def main() -> int:
     print("--- installing azure-sdk-tools[ghtools] in .venv ---")
     install_and_generate(sdk_repo, venv, input_json)
 
-    # 6. bump version + rewrite changelog
+    # 6. bump version + rewrite changelog (skipped for beta releases)
     pkg_dir = locate_package(sdk_repo, sdk_name)
-    version_file = find_version_file(pkg_dir)
-    changelog = pkg_dir / "CHANGELOG.md"
-    if not changelog.is_file():
-        raise FileNotFoundError(f"CHANGELOG.md not found at {changelog}")
-    old, new = bump_version_file(version_file)
-    rewrite_changelog(changelog, new)
-    print(f"version: {old} -> {new}")
+    if release_type == "beta":
+        old = new = ""
+        print("release_type=beta: skipping version bump and changelog rewrite")
+    else:
+        version_file = find_version_file(pkg_dir)
+        changelog = pkg_dir / "CHANGELOG.md"
+        if not changelog.is_file():
+            raise FileNotFoundError(f"CHANGELOG.md not found at {changelog}")
+        old, new = bump_version_file(version_file)
+        rewrite_changelog(changelog, new)
+        print(f"version: {old} -> {new}")
 
     # 6b. ensure aiohttp in dev_requirements.txt
     if ensure_aiohttp_in_dev_requirements(pkg_dir):
