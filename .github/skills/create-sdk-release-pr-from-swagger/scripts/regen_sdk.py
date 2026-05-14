@@ -337,6 +337,11 @@ def main() -> int:
         help="sdkReleaseType value to write into generate_input_swagger.json (default: stable)",
     )
     parser.add_argument("--work-dir", default="C:/dev", type=Path)
+    parser.add_argument(
+        "--readme",
+        default=None,
+        help="explicit relative readme.md path (forward-slash) to skip auto-discovery",
+    )
     args = parser.parse_args()
 
     work = args.work_dir.resolve()
@@ -360,7 +365,13 @@ def main() -> int:
     clean_and_sync(sdk_repo)
 
     # 2b. find readme.md against the freshly-synced spec repo
-    readme_path = find_readme(spec_repo, sdk_name)
+    if args.readme:
+        readme_path = args.readme.replace("\\", "/")
+        readme_abs = (spec_repo / readme_path).resolve()
+        if not readme_abs.is_file():
+            raise FileNotFoundError(f"--readme not found: {readme_abs}")
+    else:
+        readme_path = find_readme(spec_repo, sdk_name)
     print(f"readme_path={readme_path}")
 
     # 4. write input json
