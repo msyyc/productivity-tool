@@ -194,10 +194,10 @@ def to_remote_folder_url(local_readme: Path) -> str:
     return f"{SPEC_REPO_REMOTE}/{folder}"
 
 
-def check_deprecation(package: str) -> tuple[str | None, str | None, str | None]:
+def check_deprecation(package: str) -> tuple[str | None, str | None, str | None, str | None]:
     """Check the local SDK repo's README.md / CHANGELOG.md for a deprecation declaration.
 
-    Returns a 3-tuple ``(status, readme_text, latest_changelog_section)``:
+    Returns a 4-tuple ``(status, readme_text, latest_changelog_section, sdk_repo_url)``:
         - status:
             * ``"deprecated"``      keyword-based deprecation signal found.
             * ``"files_missing"``   package dir, README.md or CHANGELOG.md not found.
@@ -206,20 +206,27 @@ def check_deprecation(package: str) -> tuple[str | None, str | None, str | None]
         - readme_text: full README.md contents, or ``None``.
         - latest_changelog_section: the first version section of CHANGELOG.md
           (heading line plus body up to the next heading), or ``None``.
+        - sdk_repo_url: GitHub URL of the package folder under
+          ``Azure/azure-sdk-for-python/tree/main/sdk/<service>/<package>``, or
+          ``None`` when the local package folder could not be located.
     """
     sdk_dir = SDK_REPO_LOCAL / "sdk"
     if not sdk_dir.exists():
         log(f"WARNING: SDK repo not found at {SDK_REPO_LOCAL}")
-        return None, None, None
+        return None, None, None, None
     # Package folder lives at sdk/<service>/<package>/.
     candidates = list(sdk_dir.glob(f"*/{package}"))
     if not candidates:
-        return "files_missing", None, None
+        return "files_missing", None, None, None
     pkg_dir = candidates[0]
+    sdk_repo_url = (
+        "https://github.com/Azure/azure-sdk-for-python/tree/main/"
+        f"sdk/{pkg_dir.parent.name}/{pkg_dir.name}"
+    )
     readme = pkg_dir / "README.md"
     changelog = pkg_dir / "CHANGELOG.md"
     if not readme.exists() or not changelog.exists():
-        return "files_missing", None, None
+        return "files_missing", None, None, sdk_repo_url
 
     try:
         readme_text = readme.read_text(encoding="utf-8", errors="ignore")
@@ -250,7 +257,7 @@ def check_deprecation(package: str) -> tuple[str | None, str | None, str | None]
     status: str | None = None
     if rx.search(readme_text) or rx.search(changelog_text):
         status = "deprecated"
-    return status, readme_text or None, latest_section
+    return status, readme_text or None, latest_section, sdk_repo_url
 
 
 def parse_meta_json(source_root: Path) -> tuple[str | None, str | None]:
@@ -309,7 +316,7 @@ def main() -> int:
     code_dir = src_root
     readmes = search_readmes(package)
     old_readme_link, old_tag = parse_meta_json(src_root)
-    deprecation_status, readme_text, latest_changelog = check_deprecation(package)
+    deprecation_status, readme_text, latest_changelog, sdk_repo_url = check_deprecation(package)
 
     print()
     print("=== SUMMARY ===")
@@ -322,6 +329,7 @@ def main() -> int:
         print("deprecation: WARNING: README.md/CHANGELOG.md not found !!!")
     else:
         print("deprecation: OK")
+    print(f"sdk_repo_url: {sdk_repo_url if sdk_repo_url else 'NOT_FOUND'}")
     if api_versions:
         print(f"api_versions: {','.join(sorted(api_versions))}")
     else:
