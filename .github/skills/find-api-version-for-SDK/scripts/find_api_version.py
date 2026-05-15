@@ -23,7 +23,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tarfile
 import zipfile
@@ -39,15 +38,19 @@ def log(msg: str) -> None:
     print(msg, flush=True)
 
 
-def resolve_version(package: str, version: str) -> str:
+def _fetch_pypi_json(package: str) -> dict:
+    with urlopen(f"https://pypi.org/pypi/{package}/json", timeout=30) as r:
+        return json.loads(r.read())
+
+
+def resolve_version(package: str, version: str, pypi_data: dict | None = None) -> str:
     """Resolve `latest` / `latest-preview` against PyPI; otherwise return as-is."""
     v = version.lower().strip()
     if v not in {"latest", "latest-stable", "stable", "latest-preview", "preview"}:
         return version
     want_preview = v in {"latest-preview", "preview"}
     log(f"Querying PyPI for {package} ({'latest preview' if want_preview else 'latest stable'})...")
-    with urlopen(f"https://pypi.org/pypi/{package}/json", timeout=30) as r:
-        data = json.loads(r.read())
+    data = pypi_data if pypi_data is not None else _fetch_pypi_json(package)
     releases = data.get("releases", {})
     # Sort by upload time descending using the first file's upload_time per version.
     candidates = []
@@ -69,44 +72,36 @@ def resolve_version(package: str, version: str) -> str:
     return resolved
 
 
-def pip_download(package: str, version: str, dest: Path) -> Path:
+def download_sdist(package: str, version: str, dest: Path, pypi_data: dict | None = None) -> Path:
+    """Download the sdist (.tar.gz / .zip) for the given version directly from PyPI.
+
+    Bypasses `pip download` entirely to avoid PEP 517 metadata preparation overhead
+    (which spins up an isolated build env even with --no-deps).
+    """
     dest.mkdir(parents=True, exist_ok=True)
-    log(f"Downloading {package}=={version} into {dest}...")
-    cmd = [
-        sys.executable,
-        "-m",
-        "pip",
-        "download",
-        f"{package}=={version}",
-        "--no-deps",
-        "--no-binary=:none:",
-        "--dest",
-        str(dest),
-    ]
-    res = subprocess.run(cmd, capture_output=True, text=True)
-    if res.returncode != 0:
-        # Retry allowing wheels (some packages publish only wheels).
-        cmd = [
-            sys.executable,
-            "-m",
-            "pip",
-            "download",
-            f"{package}=={version}",
-            "--no-deps",
-            "--dest",
-            str(dest),
-        ]
-        res = subprocess.run(cmd, capture_output=True, text=True)
-        if res.returncode != 0:
-            log(res.stdout)
-            log(res.stderr)
-            raise SystemExit(f"pip download failed for {package}=={version}")
-    files = list(dest.iterdir())
+    data = pypi_data if pypi_data is not None else _fetch_pypi_json(package)
+    files = data.get("releases", {}).get(version)
     if not files:
-        raise SystemExit("pip download produced no files")
-    # Prefer sdist over wheel for clean source layout.
-    sdist = next((f for f in files if f.suffix in {".gz", ".zip"} and f.name.endswith((".tar.gz", ".zip"))), None)
-    return sdist or files[0]
+        raise SystemExit(f"Version {version} not found on PyPI for {package}")
+    sdist_meta = next(
+        (
+            f
+            for f in files
+            if f.get("packagetype") == "sdist"
+            or f.get("filename", "").endswith((".tar.gz", ".tgz", ".zip"))
+        ),
+        None,
+    )
+    if not sdist_meta:
+        raise SystemExit(
+            f"No sdist (.tar.gz/.zip) published on PyPI for {package}=={version}."
+        )
+    url = sdist_meta["url"]
+    out = dest / sdist_meta["filename"]
+    log(f"Downloading sdist {sdist_meta['filename']} from PyPI...")
+    with urlopen(url, timeout=60) as r, open(out, "wb") as fh:
+        shutil.copyfileobj(r, fh)
+    return out
 
 
 def extract(archive: Path, dest: Path) -> Path:
@@ -205,7 +200,9 @@ def main() -> int:
     package = sys.argv[1].strip()
     version = sys.argv[2].strip()
 
-    resolved_version = resolve_version(package, version)
+    # Fetch PyPI metadata once and reuse for both version resolution and sdist URL.
+    pypi_data = _fetch_pypi_json(package)
+    resolved_version = resolve_version(package, version, pypi_data=pypi_data)
 
     work_root = TEMP_ROOT / f"{package}-{resolved_version}"
     if work_root.exists():
@@ -213,10 +210,13 @@ def main() -> int:
     download_dir = work_root / "download"
     extract_dir = work_root / "extracted"
 
-    archive = pip_download(package, resolved_version, download_dir)
+    archive = download_sdist(package, resolved_version, download_dir, pypi_data=pypi_data)
     src_root = extract(archive, extract_dir)
 
-    api_versions, code_dir = find_api_versions(src_root)
+    api_versions, _ = find_api_versions(src_root)
+    # Per skill spec: source_dir is the top-level extracted folder (sdist root),
+    # not the deep azure/mgmt/<svc> package directory.
+    code_dir = src_root
     readmes = search_readmes(package)
 
     print()

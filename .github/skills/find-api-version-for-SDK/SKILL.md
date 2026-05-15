@@ -27,8 +27,8 @@ python <skill-dir>/scripts/find_api_version.py <package-name> <version>
 
 The script will:
 1. Resolve `latest` / `latest-preview` against PyPI if needed.
-2. `pip download` that exact version into `temp/<package>-<version>/download`.
-3. Extract the sdist/wheel into `temp/<package>-<version>/extracted`.
+2. Download the **sdist** (`.tar.gz` / `.zip`) for that exact version directly from PyPI's JSON API into `temp/<package>-<version>/download`. (Pip is intentionally bypassed to avoid PEP 517 metadata preparation overhead — a wheel-less `pip download` would spin up an isolated build env per call.)
+3. Extract the sdist into `temp/<package>-<version>/extracted`. `source_dir` is the **top-level** extracted folder (sdist root containing `setup.py`/`pyproject.toml`), not the deep `azure/mgmt/<svc>` package directory.
 4. Scan `_configuration.py` and `*_client.py` for api-version literals like `2021-02-01`.
 5. Search every `readme.python.md` under `C:/dev/azure-rest-api-specs/specification` for the package name.
 6. Print a `=== SUMMARY ===` block with `api_versions`, `source_dir`, `readme_paths`, `readme_urls`.
