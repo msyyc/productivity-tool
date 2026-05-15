@@ -194,6 +194,28 @@ def locate_package(sdk_repo: Path, sdk_name: str) -> Path:
     return candidates[0]
 
 
+def disable_auto_update(pkg_dir: Path) -> list[Path]:
+    """Remove `auto_update` entries from `sdk_packaging.toml` and `pyproject.toml`
+    so the generator does not auto-bump the package version. Returns the list of
+    files that were modified."""
+    modified: list[Path] = []
+    # match lines like:  auto_update = false   /   auto_update=true   /  "auto_update" = ...
+    line_re = re.compile(r'^\s*["\']?auto_update["\']?\s*[:=].*$', re.MULTILINE)
+    for name in ("sdk_packaging.toml", "pyproject.toml"):
+        f = pkg_dir / name
+        if not f.is_file():
+            continue
+        text = f.read_text(encoding="utf-8")
+        new_text, n = line_re.subn("", text)
+        if n == 0:
+            continue
+        # collapse the blank line left behind
+        new_text = re.sub(r"\n{3,}", "\n\n", new_text)
+        f.write_text(new_text, encoding="utf-8")
+        modified.append(f)
+    return modified
+
+
 def find_version_file(pkg_dir: Path) -> Path:
     matches = sorted(pkg_dir.rglob("_version.py"), key=lambda p: len(p.parts))
     if not matches:
@@ -387,12 +409,20 @@ def main() -> int:
     input_json = write_input_json(venv, head_sha, tag, readme_path, release_type)
     print(f"wrote {input_json}")
 
-    # 5. install tooling + run generator inside venv
+    # 5a. strip `auto_update` from sdk_packaging.toml / pyproject.toml so the
+    #     generator does not auto-bump the version.
+    pkg_dir = locate_package(sdk_repo, sdk_name)
+    removed = disable_auto_update(pkg_dir)
+    for f in removed:
+        print(f"removed auto_update from {f.relative_to(sdk_repo).as_posix()}")
+    if not removed:
+        print("no auto_update entry found in sdk_packaging.toml / pyproject.toml")
+
+    # 5b. install tooling + run generator inside venv
     print("--- installing azure-sdk-tools[ghtools] in .venv ---")
     install_and_generate(sdk_repo, venv, input_json)
 
     # 6. bump version (stable only) + rewrite changelog (always)
-    pkg_dir = locate_package(sdk_repo, sdk_name)
     version_file = find_version_file(pkg_dir)
     changelog = pkg_dir / "CHANGELOG.md"
     if not changelog.is_file():
