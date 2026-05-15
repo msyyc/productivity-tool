@@ -32,12 +32,15 @@ The script will:
 4. Scan `_configuration.py` and `*_client.py` for api-version literals like `2021-02-01`.
 5. Search every `readme.python.md` under `C:/dev/azure-rest-api-specs/specification` for the package name.
 6. If the extracted sources contain a `_meta.json`, read `commit` + `readme` to build the **old readme link** and parse `--tag=<value>` out of `autorest_command` for the **old tag**.
-7. Print a `=== SUMMARY ===` block with `api_versions`, `source_dir`, `readme_paths`, `readme_urls`, `old readme link`, `old tag`.
+7. Check the package's `README.md` and `CHANGELOG.md` under `C:/dev/azure-sdk-for-python/sdk/*/<package>/` for a **deprecation declaration** (e.g. "deprecated", "no longer maintained", "retired"). The script ALSO prints the full README.md and the latest CHANGELOG.md section between `--- BEGIN ... ---` / `--- END ... ---` markers so the agent can do an additional judgement when no keyword matched.
+8. Print a `=== SUMMARY ===` block with `deprecation`, `api_versions`, `source_dir`, `readme_paths`, `readme_urls`, `old readme link`, `old tag`, followed by the README/CHANGELOG content blocks.
 
 Parse that block and report to the user in this exact format:
 
 ```
 Package: <package> <resolved-version>
+
+<deprecation-line>     # only printed when deprecation != OK; see notes below
 
 PyPI history: https://pypi.org/project/<package>/#history
 
@@ -53,11 +56,16 @@ Spec folder(s):
 ...
 
 Old readme link: <url>     # or "not found"
+
 Old tag: <tag>              # or "not found"
 
 ```
 
 Notes for the report:
+- **Deprecation judgement (mandatory):**
+  - If `deprecation: WARNING: deprecated!!!`, print **`WARNING: deprecated!!!`** as the deprecation line.
+  - If `deprecation: WARNING: README.md/CHANGELOG.md not found !!!`, print that line verbatim.
+  - If `deprecation: OK`, you MUST still read the `--- BEGIN SDK README.md ---` and `--- BEGIN SDK CHANGELOG.md (latest section) ---` blocks the script emits and decide for yourself whether the package looks deprecated/unmaintained/retired (e.g. wording like "this package will no longer receive updates", "please use <other-package> instead", "final release"). If your judgement says yes, print **`WARNING: deprecated!!!`** as the deprecation line; otherwise omit the deprecation line entirely.
 - If `api_versions: NOT_FOUND`, print **"Could not find api-version in the package"** for that line.
 - The `code <path>` line is intentionally a copy-paste-ready command for the user to open the extracted SDK source in VS Code.
 - Each `readme_url` is the GitHub folder URL with `readme.python.md` stripped, so the user lands on the folder.
