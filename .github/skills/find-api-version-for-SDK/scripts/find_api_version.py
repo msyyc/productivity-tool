@@ -193,6 +193,36 @@ def to_remote_folder_url(local_readme: Path) -> str:
     return f"{SPEC_REPO_REMOTE}/{folder}"
 
 
+def parse_meta_json(source_root: Path) -> tuple[str | None, str | None]:
+    """Look for _meta.json in extracted sources and extract old readme link + autorest tag.
+
+    Returns (readme_url, tag) where each is None if missing.
+    """
+    meta_path = next(source_root.rglob("_meta.json"), None)
+    if not meta_path:
+        return None, None
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8", errors="ignore"))
+    except Exception:
+        return None, None
+
+    commit = meta.get("commit")
+    readme = meta.get("readme")
+    readme_url: str | None = None
+    if commit and readme:
+        # readme value is like "specification/<svc>/resource-manager/readme.md".
+        readme_clean = readme.replace("\\", "/").lstrip("/")
+        readme_url = f"https://github.com/Azure/azure-rest-api-specs/blob/{commit}/{readme_clean}"
+
+    tag: str | None = None
+    autorest_cmd = meta.get("autorest_command") or ""
+    m = re.search(r"--tag[=\s]+([^\s\"']+)", autorest_cmd)
+    if m:
+        tag = m.group(1)
+
+    return readme_url, tag
+
+
 def main() -> int:
     if len(sys.argv) < 3:
         print("Usage: python find_api_version.py <package-name> <version>")
@@ -218,6 +248,7 @@ def main() -> int:
     # not the deep azure/mgmt/<svc> package directory.
     code_dir = src_root
     readmes = search_readmes(package)
+    old_readme_link, old_tag = parse_meta_json(src_root)
 
     print()
     print("=== SUMMARY ===")
@@ -229,6 +260,8 @@ def main() -> int:
     else:
         print("api_versions: NOT_FOUND")
     print(f"source_dir: {code_dir.resolve()}")
+    print(f"old readme link: {old_readme_link if old_readme_link else 'not found'}")
+    print(f"old tag: {old_tag if old_tag else 'not found'}")
     if readmes:
         print("readme_paths:")
         for r in readmes:

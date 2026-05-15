@@ -31,7 +31,8 @@ The script will:
 3. Extract the sdist into `temp/<package>-<version>/extracted`. `source_dir` is the **top-level** extracted folder (sdist root containing `setup.py`/`pyproject.toml`), not the deep `azure/mgmt/<svc>` package directory.
 4. Scan `_configuration.py` and `*_client.py` for api-version literals like `2021-02-01`.
 5. Search every `readme.python.md` under `C:/dev/azure-rest-api-specs/specification` for the package name.
-6. Print a `=== SUMMARY ===` block with `api_versions`, `source_dir`, `readme_paths`, `readme_urls`.
+6. If the extracted sources contain a `_meta.json`, read `commit` + `readme` to build the **old readme link** and parse `--tag=<value>` out of `autorest_command` for the **old tag**.
+7. Print a `=== SUMMARY ===` block with `api_versions`, `source_dir`, `readme_paths`, `readme_urls`, `old readme link`, `old tag`.
 
 Parse that block and report to the user in this exact format:
 
@@ -43,12 +44,17 @@ PyPI history: https://pypi.org/project/<package>/#history
 API version(s): <comma-separated list>     # or: "Could not find api-version in the package"
 
 Open source code:
+
 code <source_dir>
 
 Spec folder(s):
 <readme_url_1>
 <readme_url_2>
 ...
+
+Old readme link: <url>     # or "not found"
+Old tag: <tag>              # or "not found"
+
 ```
 
 Notes for the report:
@@ -56,6 +62,8 @@ Notes for the report:
 - The `code <path>` line is intentionally a copy-paste-ready command for the user to open the extracted SDK source in VS Code.
 - Each `readme_url` is the GitHub folder URL with `readme.python.md` stripped, so the user lands on the folder.
 - If `readme_paths: NOT_FOUND`, print **"No matching readme.python.md found in the spec repo"** under "Spec folder(s):".
+- `old readme link` is built from `_meta.json` as `https://github.com/Azure/azure-rest-api-specs/blob/<commit>/<readme>`. If `_meta.json` is absent or fields are missing, print `not found`.
+- `old tag` is the value after `--tag=` (or `--tag `) inside `autorest_command` in `_meta.json`; print `not found` if absent.
 
 ## Rules
 
