@@ -23,6 +23,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tarfile
 import zipfile
@@ -170,11 +171,34 @@ def find_api_versions(source_root: Path) -> tuple[set[str], Path | None]:
     return versions, src_dir or source_root
 
 
+def _sync_spec_repo() -> None:
+    """Reset and fast-forward the local spec repo to origin/main before searching."""
+    cmd = (
+        "git reset HEAD && git checkout . && git clean -fd && "
+        "git fetch origin main && git checkout origin/main && git pull origin main"
+    )
+    log(f"$ ({SPEC_REPO_LOCAL}) {cmd}")
+    proc = subprocess.run(
+        cmd,
+        cwd=str(SPEC_REPO_LOCAL),
+        capture_output=True,
+        text=True,
+        shell=True,
+    )
+    if proc.stdout:
+        log(proc.stdout.rstrip())
+    if proc.returncode != 0:
+        log(f"WARNING: spec repo sync failed (exit {proc.returncode})")
+        if proc.stderr:
+            log(proc.stderr.rstrip())
+
+
 def search_readmes(package: str) -> list[Path]:
     matches: list[Path] = []
     if not SPEC_REPO_LOCAL.exists():
         log(f"WARNING: spec repo not found at {SPEC_REPO_LOCAL}")
         return matches
+    _sync_spec_repo()
     spec_dir = SPEC_REPO_LOCAL / "specification"
     root = spec_dir if spec_dir.exists() else SPEC_REPO_LOCAL
     log(f"Searching readme.python.md under {root}...")
