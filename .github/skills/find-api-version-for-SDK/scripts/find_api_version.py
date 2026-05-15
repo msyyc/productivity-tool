@@ -194,15 +194,20 @@ def to_remote_folder_url(local_readme: Path) -> str:
     return f"{SPEC_REPO_REMOTE}/{folder}"
 
 
-def check_deprecation(package: str) -> tuple[str | None, str | None, str | None, str | None]:
-    """Check the local SDK repo's README.md / CHANGELOG.md for a deprecation declaration.
+def check_deprecation(package: str) -> tuple[str, str | None, str | None, str | None]:
+    """Locate the local SDK package and return its README/CHANGELOG for agent judgement.
+
+    The script intentionally does NOT perform keyword-based deprecation detection
+    (keyword matching produced too many false positives, e.g. "credentials are
+    no longer supported" in a generic CHANGELOG line). Instead, it surfaces the
+    raw README.md content and the latest CHANGELOG.md section so the calling
+    agent can read them and decide.
 
     Returns a 4-tuple ``(status, readme_text, latest_changelog_section, sdk_repo_url)``:
         - status:
-            * ``"deprecated"``      keyword-based deprecation signal found.
-            * ``"files_missing"``   package dir, README.md or CHANGELOG.md not found.
-            * ``None``              files exist and no keyword match — agent should
-              additionally inspect ``readme_text`` and ``latest_changelog_section``.
+            * ``"needs_judgement"``  files were found; agent should inspect the
+              README/CHANGELOG blocks emitted in the summary.
+            * ``"files_missing"``    package dir, README.md or CHANGELOG.md not found.
         - readme_text: full README.md contents, or ``None``.
         - latest_changelog_section: the first version section of CHANGELOG.md
           (heading line plus body up to the next heading), or ``None``.
@@ -213,7 +218,7 @@ def check_deprecation(package: str) -> tuple[str | None, str | None, str | None,
     sdk_dir = SDK_REPO_LOCAL / "sdk"
     if not sdk_dir.exists():
         log(f"WARNING: SDK repo not found at {SDK_REPO_LOCAL}")
-        return None, None, None, None
+        return "files_missing", None, None, None
     # Package folder lives at sdk/<service>/<package>/.
     candidates = list(sdk_dir.glob(f"*/{package}"))
     if not candidates:
@@ -244,20 +249,7 @@ def check_deprecation(package: str) -> tuple[str | None, str | None, str | None,
     if m:
         latest_section = m.group(0).rstrip()
 
-    # Deprecation signals seen in azure-sdk-for-python deprecated packages.
-    patterns = [
-        r"\bdeprecat",            # deprecated / deprecation
-        r"no longer maintained",
-        r"no longer supported",
-        r"not maintained",
-        r"is retired",
-        r"has been retired",
-    ]
-    rx = re.compile("|".join(patterns), re.IGNORECASE)
-    status: str | None = None
-    if rx.search(readme_text) or rx.search(changelog_text):
-        status = "deprecated"
-    return status, readme_text or None, latest_section, sdk_repo_url
+    return "needs_judgement", readme_text or None, latest_section, sdk_repo_url
 
 
 def parse_meta_json(source_root: Path) -> tuple[str | None, str | None]:
@@ -323,12 +315,10 @@ def main() -> int:
     print(f"package: {package}")
     print(f"version: {resolved_version}")
     print(f"pypi_history_url: https://pypi.org/project/{package}/#history")
-    if deprecation_status == "deprecated":
-        print("deprecation: WARNING: deprecated!!!")
-    elif deprecation_status == "files_missing":
+    if deprecation_status == "files_missing":
         print("deprecation: WARNING: README.md/CHANGELOG.md not found !!!")
     else:
-        print("deprecation: OK")
+        print("deprecation: NEEDS_JUDGEMENT")
     print(f"sdk_repo_url: {sdk_repo_url if sdk_repo_url else 'NOT_FOUND'}")
     if api_versions:
         print(f"api_versions: {','.join(sorted(api_versions))}")

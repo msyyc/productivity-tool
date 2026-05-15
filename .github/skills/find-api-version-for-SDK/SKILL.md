@@ -32,8 +32,8 @@ The script will:
 4. Scan `_configuration.py` and `*_client.py` for api-version literals like `2021-02-01`.
 5. Search every `readme.python.md` under `C:/dev/azure-rest-api-specs/specification` for the package name.
 6. If the extracted sources contain a `_meta.json`, read `commit` + `readme` to build the **old readme link** and parse `--tag=<value>` out of `autorest_command` for the **old tag**.
-7. Check the package's `README.md` and `CHANGELOG.md` under `C:/dev/azure-sdk-for-python/sdk/*/<package>/` for a **deprecation declaration** (e.g. "deprecated", "no longer maintained", "retired"). The script ALSO prints the full README.md and the latest CHANGELOG.md section between `--- BEGIN ... ---` / `--- END ... ---` markers so the agent can do an additional judgement when no keyword matched.
-8. Print a `=== SUMMARY ===` block with `deprecation`, `api_versions`, `source_dir`, `readme_paths`, `readme_urls`, `old readme link`, `old tag`, followed by the README/CHANGELOG content blocks.
+7. Locate the package folder under `C:/dev/azure-sdk-for-python/sdk/*/<package>/`. The script does **not** run any keyword-based deprecation detection (it produced false positives). Instead, it prints the full `README.md` and the latest `CHANGELOG.md` section between `--- BEGIN ... ---` / `--- END ... ---` markers so **the agent itself must read them and decide** whether the package is deprecated.
+8. Print a `=== SUMMARY ===` block with `deprecation` (`NEEDS_JUDGEMENT` or `WARNING: README.md/CHANGELOG.md not found !!!`), `api_versions`, `source_dir`, `readme_paths`, `readme_urls`, `old readme link`, `old tag`, followed by the README/CHANGELOG content blocks.
 
 Parse that block and report to the user in this exact format:
 
@@ -62,12 +62,11 @@ Old tag: <tag>              # or "not found"
 ```
 
 Notes for the report:
-- **Deprecation judgement (mandatory):**
-  - If `deprecation: WARNING: deprecated!!!`, print **`WARNING: deprecated!!!`** as the deprecation line.
+- **Deprecation judgement (mandatory, agent-only):** The script no longer attempts to detect deprecation by keywords — it just hands you the raw content.
   - If `deprecation: WARNING: README.md/CHANGELOG.md not found !!!`, print that line verbatim.
-  - If `deprecation: OK`, read the `--- BEGIN SDK README.md ---` and `--- BEGIN SDK CHANGELOG.md (latest section) ---` blocks the script emits. Only print **`WARNING: deprecated!!!`** when those files **explicitly state** that this Python SDK package is deprecated / retired / unmaintained / superseded — for example wording like "this package is deprecated", "this package will no longer receive updates", "please use `<other-package>` instead", "final release", "this library has been retired". Otherwise omit the deprecation line entirely.
+  - If `deprecation: NEEDS_JUDGEMENT`, **you must read the `--- BEGIN SDK README.md ---` and `--- BEGIN SDK CHANGELOG.md (latest section) ---` blocks yourself** and decide. Only print **`WARNING: deprecated!!!`** when those files **explicitly state** that this Python SDK package is deprecated / retired / unmaintained / superseded — for example wording like "this package is deprecated", "this package will no longer receive updates", "please use `<other-package>` instead", "this is the final release", "this library has been retired". Otherwise omit the deprecation line entirely.
   - **Whenever you print `WARNING: deprecated!!!` or `WARNING: README.md/CHANGELOG.md not found !!!`**, append the SDK repo link from `sdk_repo_url:` on the next line so the user can click straight to the package folder, e.g. `SDK repo: https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/commerce/azure-mgmt-commerce`. If `sdk_repo_url: NOT_FOUND`, omit that line.
-  - **Do NOT infer deprecation from:** the generic Python 2.7 EOL disclaimer ("support for Python 2.7 has ended"), the underlying Azure service/REST API being retired, external knowledge about the product, an old "last release" date, or breaking-change notices. Rely **only** on what the package's own README.md / CHANGELOG.md say about the SDK package itself.
+  - **Do NOT infer deprecation from:** the generic Python 2.7 EOL disclaimer ("support for Python 2.7 has ended"), a CHANGELOG breaking-change line like "credentials are no longer supported" or "Model X no longer has parameter Y", the underlying Azure service/REST API being retired, external knowledge about the product, or an old "last release" date. Rely **only** on wording in the package's own README.md / CHANGELOG.md that is unambiguously about this SDK package itself.
 - If `api_versions: NOT_FOUND`, print **"Could not find api-version in the package"** for that line.
 - The `code <path>` line is intentionally a copy-paste-ready command for the user to open the extracted SDK source in VS Code.
 - Each `readme_url` is the GitHub folder URL with `readme.python.md` stripped, so the user lands on the folder.
