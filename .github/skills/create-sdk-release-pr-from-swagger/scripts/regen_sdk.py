@@ -108,13 +108,17 @@ def find_readme(spec_repo: Path, sdk_name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def clean_and_sync(repo: Path) -> str:
+def clean_and_sync(repo: Path, sha: str | None = None) -> str:
     subprocess.run(["git", "reset", "HEAD"], cwd=str(repo), check=False)
     subprocess.run(["git", "clean", "-fd"], cwd=str(repo), check=False)
     subprocess.run(["git", "checkout", "."], cwd=str(repo), check=False)
-    run(["git", "fetch", "origin", "main"], repo)
-    run(["git", "checkout", "origin/main"], repo)
-    run(["git", "pull", "origin", "main"], repo)
+    if sha:
+        run(["git", "fetch", "origin", sha], repo)
+        run(["git", "checkout", sha], repo)
+    else:
+        run(["git", "fetch", "origin", "main"], repo)
+        run(["git", "checkout", "origin/main"], repo)
+        run(["git", "pull", "origin", "main"], repo)
     return run(["git", "rev-parse", "HEAD"], repo).stdout.strip()
 
 
@@ -338,6 +342,11 @@ def main() -> int:
     )
     parser.add_argument("--work-dir", default="C:/dev", type=Path)
     parser.add_argument(
+        "--sha",
+        default=None,
+        help="spec repo SHA to checkout instead of origin/main",
+    )
+    parser.add_argument(
         "--readme",
         default=None,
         help="explicit relative readme.md path (forward-slash) to skip auto-discovery",
@@ -358,7 +367,7 @@ def main() -> int:
     # 2. find readme.md (before sync is fine; we re-find after sync for freshness)
     # 3. sync repos
     print("--- syncing azure-rest-api-specs ---")
-    head_sha = clean_and_sync(spec_repo)
+    head_sha = clean_and_sync(spec_repo, sha=args.sha)
     print(f"head_sha={head_sha}")
 
     print("--- syncing azure-sdk-for-python ---")

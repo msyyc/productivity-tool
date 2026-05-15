@@ -19,6 +19,7 @@ Regenerate a Python SDK package from the swagger (azure-rest-api-specs) repo usi
 - **SDK package name** (required): e.g. `azure-mgmt-frontdoor`
 - **Tag** (required): swagger python tag, e.g. `package-2024-05`
 - **Release type** (optional): `stable` or `beta` — written to `sdkReleaseType` in the generator input. Defaults to `stable`. Ask the user if unsure.
+- **Spec SHA** (optional): a commit SHA in `azure-rest-api-specs`. If provided, the spec repo is checked out at this SHA instead of `origin/main`.
 
 If either of the required inputs is missing, ask the user before continuing.
 
@@ -27,13 +28,13 @@ If either of the required inputs is missing, ask the user before continuing.
 A single orchestrator script runs every step end-to-end. Any failure raises and the script exits non-zero — do not retry, just report the failure to the user.
 
 ```
-python <skill-dir>/scripts/regen_sdk.py <sdk-name> <tag> [--release-type stable|beta] [--work-dir C:/dev]
+python <skill-dir>/scripts/regen_sdk.py <sdk-name> <tag> [--release-type stable|beta] [--sha <spec-sha>] [--work-dir C:/dev]
 ```
 
 The script performs, in order:
 
 1. **Pre-flight** — verify `azure-rest-api-specs` and `azure-sdk-for-python` exist under `--work-dir`, and that the SDK repo has a `.venv` folder. Raises if any are missing.
-2. **Sync swagger repo** — `git reset HEAD && git clean -fd && git checkout . && git checkout origin/main && git pull origin main`. Records the resulting HEAD SHA.
+2. **Sync swagger repo** — `git reset HEAD && git clean -fd && git checkout .`, then either checkout the user-provided `--sha` (after `git fetch origin`) or `git checkout origin/main && git pull origin main`. Records the resulting HEAD SHA.
 3. **Sync SDK repo** — same clean/sync sequence on `azure-sdk-for-python`.
 4. **Find readme.md** — searches every `readme.python.md` under `<spec-repo>/specification/` for the SDK package name; uses the sibling `readme.md`. Errors if zero or multiple matches.
 5. **Write `<sdk-repo>/.venv/generate_input_swagger.json`:**
