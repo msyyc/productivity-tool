@@ -5,6 +5,12 @@ End-to-end orchestrator. Any failure raises and exits with non-zero status.
 Usage:
     python regen_sdk.py <sdk-name> <tag> [--work-dir C:/dev]
 
+If --work-dir is not provided, the script looks for a `.env` file at the
+productivity-tool repo root and reads `LOCAL_AZURE_SPEC_REPO` and
+`LOCAL_AZURE_SDK_REPO` from it. If `.env` does not exist (or the keys are
+missing), it falls back to `C:/dev/azure-rest-api-specs` and
+`C:/dev/azure-sdk-for-python`.
+
 Example:
     python regen_sdk.py azure-mgmt-frontdoor package-2024-05
 """
@@ -55,9 +61,60 @@ def run(cmd, cwd: Path, env=None, check: bool = True) -> subprocess.CompletedPro
 # ---------------------------------------------------------------------------
 
 
-def check_repos(work_dir: Path) -> tuple[Path, Path]:
-    spec_repo = work_dir / "azure-rest-api-specs"
-    sdk_repo = work_dir / "azure-sdk-for-python"
+DEFAULT_WORK_DIR = Path("C:/dev")
+
+
+def _read_env_file(env_path: Path) -> dict[str, str]:
+    """Parse a simple KEY=VALUE .env file."""
+    env_vars: dict[str, str] = {}
+    with env_path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, _, value = line.partition("=")
+                env_vars[key.strip()] = value.strip().strip("\"'")
+    return env_vars
+
+
+def resolve_repos(work_dir: Path | None) -> tuple[Path, Path]:
+    """Resolve (spec_repo, sdk_repo) paths.
+
+    Priority:
+      1. Explicit --work-dir argument → <work_dir>/azure-rest-api-specs and
+         <work_dir>/azure-sdk-for-python.
+      2. `.env` file at productivity-tool repo root with
+         `LOCAL_AZURE_SPEC_REPO` and `LOCAL_AZURE_SDK_REPO`.
+      3. Default to `C:/dev/azure-rest-api-specs` and
+         `C:/dev/azure-sdk-for-python`.
+    """
+    if work_dir is not None:
+        return work_dir / "azure-rest-api-specs", work_dir / "azure-sdk-for-python"
+
+    # Productivity-tool repo root is 4 parents up from this script:
+    # scripts → create-sdk-release-pr-from-swagger → skills → .github → root
+    repo_root = Path(__file__).resolve().parents[4]
+    env_path = repo_root / ".env"
+    spec_repo: Path | None = None
+    sdk_repo: Path | None = None
+    if env_path.is_file():
+        env_vars = _read_env_file(env_path)
+        spec_val = env_vars.get("LOCAL_AZURE_SPEC_REPO")
+        sdk_val = env_vars.get("LOCAL_AZURE_SDK_REPO")
+        if spec_val:
+            spec_repo = Path(spec_val)
+        if sdk_val:
+            sdk_repo = Path(sdk_val)
+
+    if spec_repo is None:
+        spec_repo = DEFAULT_WORK_DIR / "azure-rest-api-specs"
+    if sdk_repo is None:
+        sdk_repo = DEFAULT_WORK_DIR / "azure-sdk-for-python"
+    return spec_repo, sdk_repo
+
+
+def check_repos(spec_repo: Path, sdk_repo: Path) -> tuple[Path, Path]:
     if not spec_repo.is_dir():
         raise FileNotFoundError(f"spec repo not found: {spec_repo}")
     if not sdk_repo.is_dir():
@@ -362,7 +419,18 @@ def main() -> int:
         default="stable",
         help="sdkReleaseType value to write into generate_input_swagger.json (default: stable)",
     )
-    parser.add_argument("--work-dir", default="C:/dev", type=Path)
+    parser.add_argument(
+        "--work-dir",
+        default=None,
+        type=Path,
+        help=(
+            "Folder containing both `azure-rest-api-specs` and "
+            "`azure-sdk-for-python`. If omitted, the script reads "
+            "`LOCAL_AZURE_SPEC_REPO` and `LOCAL_AZURE_SDK_REPO` from a `.env` "
+            "file at the productivity-tool repo root, and falls back to "
+            "`C:/dev` if neither is set."
+        ),
+    )
     parser.add_argument(
         "--sha",
         default=None,
@@ -375,7 +443,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    work = args.work_dir.resolve()
+    work = args.work_dir.resolve() if args.work_dir is not None else None
     sdk_name = args.sdk_name
     tag = args.tag
     release_type = args.release_type
@@ -383,7 +451,11 @@ def main() -> int:
     print(f"=== regen {sdk_name} (tag={tag}, release_type={release_type}) ===")
 
     # 1. pre-flight
-    spec_repo, sdk_repo = check_repos(work)
+    spec_repo, sdk_repo = resolve_repos(work)
+    spec_repo, sdk_repo = spec_repo.resolve(), sdk_repo.resolve()
+    print(f"spec_repo={spec_repo}")
+    print(f"sdk_repo={sdk_repo}")
+    check_repos(spec_repo, sdk_repo)
     venv = check_venv(sdk_repo)
 
     # 2. find readme.md (before sync is fine; we re-find after sync for freshness)

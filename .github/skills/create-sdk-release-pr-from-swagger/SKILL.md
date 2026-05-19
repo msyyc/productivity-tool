@@ -9,9 +9,10 @@ Regenerate a Python SDK package from the swagger (azure-rest-api-specs) repo usi
 
 ## Prerequisites
 
-- Local repos under the work folder (default `C:/dev`):
-  - `azure-rest-api-specs`
-  - `azure-sdk-for-python` with a `.venv` virtual environment already created
+- Local repos for `azure-rest-api-specs` and `azure-sdk-for-python` (the SDK repo must already have a `.venv` created). The script locates them in the following order:
+  1. If `--work-dir <path>` is passed, both repos must live directly under `<path>` (`<path>/azure-rest-api-specs`, `<path>/azure-sdk-for-python`).
+  2. Otherwise, if the productivity-tool repo root contains a `.env` file, the script reads `LOCAL_AZURE_SPEC_REPO` and `LOCAL_AZURE_SDK_REPO` from it and uses those full paths.
+  3. Otherwise the script defaults to `C:/dev/azure-rest-api-specs` and `C:/dev/azure-sdk-for-python`.
 - `gh` CLI authenticated.
 
 ## Input
@@ -33,7 +34,7 @@ python <skill-dir>/scripts/regen_sdk.py <sdk-name> <tag> [--release-type stable|
 
 The script performs, in order:
 
-1. **Pre-flight** — verify `azure-rest-api-specs` and `azure-sdk-for-python` exist under `--work-dir`, and that the SDK repo has a `.venv` folder. Raises if any are missing.
+1. **Pre-flight** — resolve the spec/SDK repo paths (`--work-dir`, then `.env` at the productivity-tool root with `LOCAL_AZURE_SPEC_REPO` / `LOCAL_AZURE_SDK_REPO`, then `C:/dev`). Verify both repos exist and the SDK repo has a `.venv` folder. Raises if any are missing.
 2. **Sync swagger repo** — `git reset HEAD && git clean -fd && git checkout .`, then either checkout the user-provided `--sha` (after `git fetch origin`) or `git checkout origin/main && git pull origin main`. Records the resulting HEAD SHA.
 3. **Sync SDK repo** — same clean/sync sequence on `azure-sdk-for-python`.
 4. **Find readme.md** — searches every `readme.python.md` under `<spec-repo>/specification/` for the SDK package name; uses the sibling `readme.md`. Errors if zero or multiple matches.
@@ -74,3 +75,8 @@ At the end the script emits a `=== SESSION_STATE === ... === END_SESSION_STATE =
 - The script is the single source of truth. Do not split the workflow into manual steps.
 - On any failure, surface the script's stderr to the user and stop — do not attempt recovery or retries.
 - Use forward slashes when passing `--work-dir`.
+- The `.env` file (when present) lives at the productivity-tool repo root and may contain:
+  ```
+  LOCAL_AZURE_SPEC_REPO=C:/path/to/azure-rest-api-specs
+  LOCAL_AZURE_SDK_REPO=C:/path/to/azure-sdk-for-python
+  ```
