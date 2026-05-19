@@ -363,7 +363,6 @@ Read the CHANGELOG.md at `changelog_path` and extract only the content under the
 
      @@clientName(...);
      ```
-   - Update `tspconfig.yaml` to use `client.tsp` as entry point if needed
 4. **Format the edited TypeSpec files.** After creating or editing `client.tsp`, run `tsv` (TypeSpec validate/format) from the **root of the spec worktree** against the folder containing `client.tsp`:
 
    ```
