@@ -30,9 +30,45 @@ import zipfile
 from pathlib import Path
 from urllib.request import urlopen
 
-SPEC_REPO_LOCAL = Path("C:/dev/azure-rest-api-specs")
 SPEC_REPO_REMOTE = "https://github.com/Azure/azure-rest-api-specs/tree/main"
-SDK_REPO_LOCAL = Path("C:/dev/azure-sdk-for-python")
+
+
+def _read_env_file(env_path: Path) -> dict[str, str]:
+    """Parse a simple KEY=VALUE .env file."""
+    env_vars: dict[str, str] = {}
+    try:
+        with env_path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    key, _, value = line.partition("=")
+                    env_vars[key.strip()] = value.strip().strip("\"'")
+    except OSError:
+        pass
+    return env_vars
+
+
+def _resolve_repo_paths() -> tuple[Path, Path]:
+    """Resolve (spec_repo, sdk_repo) local paths.
+
+    Order:
+      1. `.env` at the productivity-tool repo root with `LOCAL_AZURE_SPEC_REPO`
+         and/or `LOCAL_AZURE_SDK_REPO`.
+      2. Default to `C:/dev/azure-rest-api-specs` and `C:/dev/azure-sdk-for-python`.
+    """
+    # scripts → find-api-version-for-SDK → skills → .github → repo root
+    repo_root = Path(__file__).resolve().parents[4]
+    env_vars = _read_env_file(repo_root / ".env") if (repo_root / ".env").is_file() else {}
+    spec_val = env_vars.get("LOCAL_AZURE_SPEC_REPO")
+    sdk_val = env_vars.get("LOCAL_AZURE_SDK_REPO")
+    spec_repo = Path(spec_val) if spec_val else Path("C:/dev/azure-rest-api-specs")
+    sdk_repo = Path(sdk_val) if sdk_val else Path("C:/dev/azure-sdk-for-python")
+    return spec_repo, sdk_repo
+
+
+SPEC_REPO_LOCAL, SDK_REPO_LOCAL = _resolve_repo_paths()
 TEMP_ROOT = Path("temp")
 
 

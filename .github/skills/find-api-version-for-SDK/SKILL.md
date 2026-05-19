@@ -30,9 +30,9 @@ The script will:
 2. Download the **sdist** (`.tar.gz` / `.zip`) for that exact version directly from PyPI's JSON API into `temp/<package>-<version>/download`. (Pip is intentionally bypassed to avoid PEP 517 metadata preparation overhead — a wheel-less `pip download` would spin up an isolated build env per call.)
 3. Extract the sdist into `temp/<package>-<version>/extracted`. `source_dir` is the **top-level** extracted folder (sdist root containing `setup.py`/`pyproject.toml`), not the deep `azure/mgmt/<svc>` package directory.
 4. Scan `_configuration.py` and `*_client.py` for api-version literals like `2021-02-01`.
-5. Search every `readme.python.md` under `C:/dev/azure-rest-api-specs/specification` for the package name.
+5. Search every `readme.python.md` under `<spec-repo>/specification` for the package name.
 6. If the extracted sources contain a `_meta.json`, read `commit` + `readme` to build the **old readme link** and parse `--tag=<value>` out of `autorest_command` for the **old tag**.
-7. Locate the package folder under `C:/dev/azure-sdk-for-python/sdk/*/<package>/`. The script does **not** run any keyword-based deprecation detection (it produced false positives). Instead, it prints the full `README.md` and the latest `CHANGELOG.md` section between `--- BEGIN ... ---` / `--- END ... ---` markers so **the agent itself must read them and decide** whether the package is deprecated.
+7. Locate the package folder under `<sdk-repo>/sdk/*/<package>/`. The script does **not** run any keyword-based deprecation detection (it produced false positives). Instead, it prints the full `README.md` and the latest `CHANGELOG.md` section between `--- BEGIN ... ---` / `--- END ... ---` markers so **the agent itself must read them and decide** whether the package is deprecated.
 8. Print a `=== SUMMARY ===` block with `deprecation` (`NEEDS_JUDGEMENT` or `WARNING: README.md/CHANGELOG.md not found !!!`), `api_versions`, `source_dir`, `readme_paths`, `readme_urls`, `old readme link`, `old tag`, followed by the README/CHANGELOG content blocks.
 
 Parse that block and report to the user in this exact format:
@@ -81,6 +81,9 @@ Notes for the report:
   - "latest", "latest stable", "newest stable" → `latest`
   - "latest preview", "newest preview", "latest beta" → `latest-preview`
 - If the user gives an explicit version that doesn't exist on PyPI, the script will fail; surface the pip error to the user and stop.
-- Spec repo location is hard-coded to `C:/dev/azure-rest-api-specs`. If that path doesn't exist, the script logs a warning and skips the readme search; report "spec repo not found locally" to the user.
+- Spec and SDK repo locations are resolved at startup:
+  1. If a `.env` file exists at the productivity-tool repo root, the script reads `LOCAL_AZURE_SPEC_REPO` and `LOCAL_AZURE_SDK_REPO` from it.
+  2. Otherwise it falls back to `C:/dev/azure-rest-api-specs` and `C:/dev/azure-sdk-for-python`.
+  If the resolved spec path doesn't exist, the script logs a warning and skips the readme search; report "spec repo not found locally" to the user.
 - If multiple `readme.python.md` files match, list them **all** (paths and URLs), in the order returned.
 - Do not delete the `temp/` folder afterwards — the user may want to browse it via the printed `code` command.
