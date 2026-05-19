@@ -364,7 +364,16 @@ Read the CHANGELOG.md at `changelog_path` and extract only the content under the
      @@clientName(...);
      ```
    - Update `tspconfig.yaml` to use `client.tsp` as entry point if needed
-4. Produce a structured summary listing each breaking change, its classification (ACCEPT/MITIGATE), and any mitigations applied
+4. **Format the edited TypeSpec files.** After creating or editing `client.tsp`, run `tsv` (TypeSpec validate/format) from the **root of the spec worktree** against the folder containing `client.tsp`:
+
+   ```
+   cd <spec_worktree>
+   npm ci
+   npx tsv <spec_folder>
+   ```
+
+   `<spec_folder>` is the directory that contains `client.tsp` (the same `spec_folder` stored in session state). Running `tsv` ensures the file matches the repo's TypeSpec formatting conventions so the mitigation PR doesn't fail style checks. `npm ci` only needs to be run once per worktree, but it is safe to re-run.
+5. Produce a structured summary listing each breaking change, its classification (ACCEPT/MITIGATE), and any mitigations applied
 
 Use this classification summary to proceed with PR creation.
 
