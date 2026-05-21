@@ -258,7 +258,44 @@ It's often along with a fake `re-ordered` report like:
 ```
 Remove this fake re-order report. Don't change other `re-order` reports that do not represent an operation migration.
 
-### 11. Consolidate Renames and Combined Enums
+### 11. Consolidate Unused Models or Enums
+
+When one or more entities are reported as "deleted or renamed" and are NOT referenced anywhere in the SDK source (i.e., never used as a parameter type, return type, or property type by any operation or other model/enum), treat them as unused and consolidate them.
+
+**Important:** The original changelog does NOT distinguish enums from models — it always reports `Deleted or renamed model `X``, even when `X` is actually an enum. You MUST classify each entity by checking which source file defines it:
+- **Enum**: defined in a file named `_*enums.py` (e.g., `_enums.py`, `_patch_enums.py`).
+- **Model**: defined in `_models.py` or `_models_py3.py`.
+- **Operation**: an API defined in files under `operations/*.py` or `_operations/*.py`. Any usage of `X` in these files counts as a reference.
+
+Detection procedure (you MUST verify by checking the SDK source under the package directory, typically `<worktree_path>/sdk/<service-dir>/<package_name>/<package_namespace>/`):
+1. For each `Deleted or renamed model `X`` entry, locate the previous-version source to determine whether `X` is a model or enum (by the defining file name above).
+2. Search the SDK source for any reference to `X` (in `models/_models.py`, `models/_enums.py`, operation files, etc.). If `X` is not referenced by any operation or any other model/enum, it is unused.
+3. Exclude entries already covered by rule 9 (paging `...List` wrappers) or by rule 12's rename/combine consolidation.
+
+Replace the individual lines with consolidated entries under `### Other Changes`, emitting **two separate lines** — one for unused models and one for unused enums (omit a line if its group is empty):
+
+**Before:**
+```
+### Breaking Changes
+
+  - Deleted or renamed model `FooSettings`
+  - Deleted or renamed model `BarMode`
+  - Deleted or renamed model `BazKind`
+```
+
+(Suppose `FooSettings` is defined in `_models.py`, while `BarMode` and `BazKind` are defined in `_enums.py`.)
+
+**After:**
+```
+### Other Changes
+
+  - Deleted model `FooSettings` which actually were not used by SDK users
+  - Deleted enum `BarMode`/`BazKind` which actually were not used by SDK users
+```
+
+If only one group has entries, emit only that line (e.g., only the `Deleted model ...` line, or only the `Deleted enum ...` line).
+
+### 12. Consolidate Renames and Combined Enums
 
 After applying the rules above, also apply the rename/combine consolidation procedure described in [../../sdk-breaking-check-for-tsp-migration/references/optimize-changelog-consolidate-renames.md](../../sdk-breaking-check-for-tsp-migration/references/optimize-changelog-consolidate-renames.md) to collapse paired `Deleted or renamed model` + `Added model/enum` entries into clearer `Renamed X to Y` (1‑1) or `Combined enum X/Y/... to Z` (many‑1) lines.
 
