@@ -171,50 +171,17 @@ INSERT OR REPLACE INTO session_state (key, value) VALUES
 
 ### Step 6: Update Changelog
 
-This step is **independent** — delegate it to a **subagent** with all necessary context.
+This step is **independent** — delegate it to a **subagent** following the shared procedure.
 
-**Launch a subagent** with the following prompt (fill in the placeholders from session state):
+**Procedure:** [references/changelog-optimization-procedure.md](references/changelog-optimization-procedure.md)
 
-> You are optimizing the CHANGELOG.md for the Python SDK package `<package_name>`.
->
-> **Worktree path:** `<worktree_path>`
->
-> **Instructions:**
->
-> 1. **Find the CHANGELOG.md** in the SDK package directory. The path is typically:
->    ```
->    <worktree_path>/sdk/<service-dir>/<package_name>/CHANGELOG.md
->    ```
->    Search for it if the exact path is unknown:
->    ```
->    Get-ChildItem -Path <worktree_path> -Recurse -Filter CHANGELOG.md | Where-Object { $_.FullName -like "*<package_name>*" }
->    ```
->
-> 2. **Read only the latest version section** of the CHANGELOG.md (everything from the first `## ` heading to the next `## ` heading).
->
-> 3. **Read the optimization rules** from `<skill-dir>/references/changelog-optimization.md` and apply ALL rules to the latest version section. The rules cover:
->    - Operation group naming corrections
->    - Parameter default value changes
->    - Entries to remove (overloads, internal properties)
->    - Parameter renaming
->    - Renaming of properties that conflict with base model methods
->    - Grouping moved instance variables under a new container property (requires reading `_models.py` in the package to identify container types)
->    - Hybrid model migration note
->    - Hybrid operation migration note
->    - Consolidating unused list models
->    - Grouping parameter kind changes
->
-> 4. **Write the updated CHANGELOG.md** using the edit tool.
->
-> 5. **Commit and push:**
->    ```
->    cd <worktree_path>
->    git add sdk/<service-dir>/<package_name>/CHANGELOG.md
->    git commit -m "Optimize changelog for <package_name>"
->    git push
->    ```
->
-> 6. **Return** a summary of all changelog changes made (what rules were applied and what was changed).
+**Inputs to pass:**
+- `package_name` — from session state
+- `worktree_path` — from session state
+- `changelog_path` — typically `<worktree_path>/sdk/<service-dir>/<package_name>/CHANGELOG.md` (or let the subagent search)
+- `commit_message` — `Optimize changelog for <package_name>`
+- `push_target` — `git push`
+- `skip_rules` — none (apply all rules)
 
 **Report to user:** the summary returned by the subagent.
 

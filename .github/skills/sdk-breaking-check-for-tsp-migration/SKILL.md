@@ -36,7 +36,8 @@ Typical wall-clock times observed per step (may vary by package size and network
 | Step 4 | ~15 sec | Report comparison + changelog generation |
 | Step 4.5 | ~30 sec | Changelog rename consolidation |
 | Step 5 | ~2 min | Classification + PR creation |
-| **Total** | **~18 min** | End-to-end for a typical package |
+| Step 6 | ~1 min | Changelog optimization (subagent) |
+| **Total** | **~19 min** | End-to-end for a typical package |
 
 ## Prerequisites
 
@@ -472,6 +473,33 @@ The PR body (`<report>`) should contain the full breaking change analysis report
 - The spec PR URL (if any — in PR mode, link to the newly created mitigation PR)
 - The SDK draft PR URL
 - List of accepted breaking changes that will remain
+
+### Step 6: Optimize Changelog
+
+After the SDK PR is created in Step 5, apply the general changelog optimization rules to clean up noisy auto-generated entries. The push in this step updates the existing draft PR.
+
+**Read session state:**
+
+```sql
+SELECT key, value FROM session_state
+WHERE key IN ('package_name', 'sdk_worktree', 'changelog_path', 'has_breaking_changes', 'github_username');
+```
+
+If `has_breaking_changes` is `false`, skip this step.
+
+This step is **independent** — delegate it to a **subagent** following the shared procedure.
+
+**Procedure:** [../create-sdk-release-pr/references/changelog-optimization-procedure.md](../create-sdk-release-pr/references/changelog-optimization-procedure.md)
+
+**Inputs to pass:**
+- `package_name` — from session state
+- `worktree_path` — `<sdk_worktree>` from session state
+- `changelog_path` — from session state
+- `commit_message` — `Optimize changelog for <package_name>`
+- `push_target` — `git push <github_username> HEAD` (the SDK PR was pushed to the user's fork in Step 5)
+- `skip_rules` — `[11]` (rule 11 — consolidating renames and combined enums — was already applied in Step 4.5)
+
+**Report to user:** the summary returned by the subagent.
 
 ## Rules
 
