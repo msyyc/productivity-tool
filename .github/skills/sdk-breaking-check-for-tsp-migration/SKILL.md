@@ -397,7 +397,7 @@ Use this classification summary to proceed with PR creation.
 
 #### Package name mode (no `pr_number` in session state):
 
-Create a new draft spec PR:
+Create a new spec PR (not draft):
 
 ```
 cd <spec_worktree>
@@ -410,14 +410,14 @@ git push <github_username> HEAD
 Write the PR body to a temporary file first, then create the PR with `--body-file`. **Always add the required labels** via `--label` (one flag per label):
 
 ```
-gh pr create --repo Azure/azure-rest-api-specs --head <github_username>:<spec_branch> --base main --draft --title "[Python] Mitigate breaking changes for {package_name}" --body-file <temp-file> --label "BreakingChange-Go-Sdk-Approved" --label "BreakingChange-JavaScript-Sdk-Approved" --label "BreakingChange-Python-Sdk-Approved" --label "PublishToCustomers" --label "ARMSignedOff"
+gh pr create --repo Azure/azure-rest-api-specs --head <github_username>:<spec_branch> --base main --title "[Python] Mitigate breaking changes for {package_name}" --body-file <temp-file> --label "BreakingChange-Go-Sdk-Approved" --label "BreakingChange-JavaScript-Sdk-Approved" --label "BreakingChange-Python-Sdk-Approved" --label "PublishToCustomers" --label "ARMSignedOff"
 ```
 
 Keep the spec PR body **brief** — a one-line purpose statement plus a short bullet list of mitigations is sufficient. Do not duplicate the full breaking-change analysis report here (that goes in the SDK PR body).
 
 #### PR mode (when `pr_number` exists in session state):
 
-Create a new draft spec PR targeting the input PR's source branch:
+Create a new spec PR (not draft) targeting the input PR's source branch:
 
 ```
 cd <spec_worktree>
@@ -430,7 +430,7 @@ git push <github_username> HEAD
 Write the PR body to a temporary file first, then create the PR with `--body-file`. **Always add the required labels** via `--label` (one flag per label):
 
 ```
-gh pr create --repo <pr_head_owner>/azure-rest-api-specs --head <github_username>:<spec_branch> --base <pr_head_ref> --draft --title "[Python] Mitigate breaking changes for {package_name}" --body-file <temp-file> --label "BreakingChange-Go-Sdk-Approved" --label "BreakingChange-JavaScript-Sdk-Approved" --label "BreakingChange-Python-Sdk-Approved" --label "PublishToCustomers" --label "ARMSignedOff"
+gh pr create --repo <pr_head_owner>/azure-rest-api-specs --head <github_username>:<spec_branch> --base <pr_head_ref> --title "[Python] Mitigate breaking changes for {package_name}" --body-file <temp-file> --label "BreakingChange-Go-Sdk-Approved" --label "BreakingChange-JavaScript-Sdk-Approved" --label "BreakingChange-Python-Sdk-Approved" --label "PublishToCustomers" --label "ARMSignedOff"
 ```
 
 Keep the spec PR body **brief** — a one-line purpose statement plus a short bullet list of mitigations is sufficient. Do not duplicate the full breaking-change analysis report here (that goes in the SDK PR body).
