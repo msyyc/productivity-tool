@@ -407,13 +407,13 @@ git push <github_username> HEAD
 
 > **Important:** Stage only `client.tsp` (the file the agent intentionally edits for mitigations). Do **not** use `git add .` here — the SDK generation script in Step 3 may have side-effect modifications to `tspconfig.yaml` (e.g. YAML reformatting from a non-round-trip dump) in the spec worktree, and a blanket `git add .` would commit them into the mitigation PR, producing noisy unrelated diffs. If additional mitigation files are intentionally created (e.g. a new `client.tsp` in a subfolder), add them by explicit path.
 
-Write the PR body to a temporary file first, then create the PR with `--body-file`:
+Write the PR body to a temporary file first, then create the PR with `--body-file`. **Always add the required labels** via `--label` (one flag per label):
 
 ```
-gh pr create --repo Azure/azure-rest-api-specs --head <github_username>:<spec_branch> --base main --draft --title "[Python] Mitigate breaking changes for {package_name}" --body-file <temp-file>
+gh pr create --repo Azure/azure-rest-api-specs --head <github_username>:<spec_branch> --base main --draft --title "[Python] Mitigate breaking changes for {package_name}" --body-file <temp-file> --label "BreakingChange-Go-Sdk-Approved" --label "BreakingChange-JavaScript-Sdk-Approved" --label "BreakingChange-Python-Sdk-Approved" --label "PublishToCustomers" --label "ARMSignedOff"
 ```
 
-The PR body should include a summary table of all breaking changes and their classification.
+Keep the spec PR body **brief** — a one-line purpose statement plus a short bullet list of mitigations is sufficient. Do not duplicate the full breaking-change analysis report here (that goes in the SDK PR body).
 
 #### PR mode (when `pr_number` exists in session state):
 
@@ -427,13 +427,13 @@ git push <github_username> HEAD
 
 > **Important:** Same rule as Package name mode — stage only `client.tsp` (or other explicitly-authored mitigation files) by path. Never use `git add .` in the spec worktree, or unrelated side-effect changes (e.g. `tspconfig.yaml` reformatting from the generation script) will leak into the mitigation PR.
 
-Write the PR body to a temporary file first, then create the PR with `--body-file`:
+Write the PR body to a temporary file first, then create the PR with `--body-file`. **Always add the required labels** via `--label` (one flag per label):
 
 ```
-gh pr create --repo <pr_head_owner>/azure-rest-api-specs --head <github_username>:<spec_branch> --base <pr_head_ref> --draft --title "[Python] Mitigate breaking changes for {package_name}" --body-file <temp-file>
+gh pr create --repo <pr_head_owner>/azure-rest-api-specs --head <github_username>:<spec_branch> --base <pr_head_ref> --draft --title "[Python] Mitigate breaking changes for {package_name}" --body-file <temp-file> --label "BreakingChange-Go-Sdk-Approved" --label "BreakingChange-JavaScript-Sdk-Approved" --label "BreakingChange-Python-Sdk-Approved" --label "PublishToCustomers" --label "ARMSignedOff"
 ```
 
-The PR body should include a summary table of all breaking changes and their classification.
+Keep the spec PR body **brief** — a one-line purpose statement plus a short bullet list of mitigations is sufficient. Do not duplicate the full breaking-change analysis report here (that goes in the SDK PR body).
 
 **Create a draft SDK PR:**
 
