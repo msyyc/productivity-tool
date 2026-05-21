@@ -34,6 +34,7 @@ Typical wall-clock times observed per step (may vary by package size and network
 | Step 2 | ~3 min | Swagger SDK generation + code report |
 | Step 3 | ~4.5 min | TypeSpec SDK generation + code report |
 | Step 4 | ~15 sec | Report comparison + changelog generation |
+| Step 4.5 | ~30 sec | Changelog rename consolidation |
 | Step 5 | ~2 min | Classification + PR creation |
 | **Total** | **~18 min** | End-to-end for a typical package |
 
@@ -323,6 +324,68 @@ INSERT OR REPLACE INTO session_state (key, value) VALUES
   ('changelog_path', '<parsed value>'),
   ('has_breaking_changes', '<parsed value>');
 ```
+
+### Step 4.5: Optimize Changelog (Consolidate Renames)
+
+The changelog produced by Step 4 is generated from a structural diff and lists every removed item as `Deleted or renamed model` and every new item as `Added model`/`Added enum`. When a type was simply **renamed** (same wire values, same semantic purpose), this produces two redundant lines that obscure the migration story. This step consolidates clean 1‑1 renames into single `Renamed X to Y` entries to shrink the changelog and make migration intuitive for SDK users.
+
+This step is **read-only against source code** — it never modifies generated SDK code, only `CHANGELOG.md`.
+
+**Read session state:**
+
+```sql
+SELECT key, value FROM session_state
+WHERE key IN ('package_name', 'sdk_package_path', 'sdk_worktree', 'changelog_path', 'has_breaking_changes');
+```
+
+If `has_breaking_changes` is `false`, skip this step.
+
+**Analysis procedure:**
+
+1. Read the latest version section of `CHANGELOG.md` (everything from the first `##` heading to the next `##` heading).
+2. Collect two lists from that section:
+   - **Deleted/renamed items:** lines matching `Deleted or renamed model \`X\``
+   - **Added items:** lines matching `Added model \`X\`` or `Added enum \`X\``
+3. For each `(deleted, added)` candidate pair, classify it as a rename **only if all of the following hold**:
+   - Both are the **same kind** (both enums, or both models).
+   - For enums: the new enum has **the same set of wire string values** as the old enum (case-sensitive comparison of the assigned string literals, not the Python identifiers). Read the new enum from `<sdk_worktree>/<sdk_package_path>/azure/.../models/_enums.py` (or wherever the package puts enums) and the old enum from the corresponding file on the `main` branch via `git show main:<path>` to compare.
+   - For models: the new model has the **same set of public field names and types** (or a strict superset, i.e. fields can be added but none removed or retyped). Compare the class bodies in the new `_models.py` against the old one obtained via `git show main:<path>`.
+   - The semantic purpose is preserved (e.g., a base discriminator class in old code mapping to a subclass in new code is **not** a rename even if names look related).
+4. Items that fail any of the above are **not renames** — keep them as deleted/added.
+
+**Edit `CHANGELOG.md`:**
+
+For each confirmed rename `OldName → NewName`:
+- Remove the `Added model/enum \`NewName\`` line from the **Features Added** section.
+- Replace the `Deleted or renamed model \`OldName\`` line in the **Breaking Changes** section with `Renamed enum \`OldName\` to \`NewName\`` (or `Renamed model` for models).
+
+Do not touch any other changelog content. Do not delete entries that don't have a confirmed rename match.
+
+**Independent commit:**
+
+Commit the changelog edit on its own so the rename consolidation is reviewable separately from the raw generated diff:
+
+```
+cd <sdk_worktree>
+git add <changelog_path>
+git commit -m "Consolidate renames in CHANGELOG for {package_name}"
+```
+
+If no renames were identified, skip the commit and note that the changelog was already minimal.
+
+**Report to user (include in final report at Step 5 too):**
+
+Produce two sections in the analysis output:
+
+1. **Consolidated renames** — table of `Old name | New name | Kind (enum/model) | Evidence (matching wire values / matching fields)`.
+2. **Items left unchanged and why** — for every deleted item that was *not* consolidated, give a one-line reason. Typical reasons:
+   - *No corresponding added item* (genuine removal).
+   - *Different wire values* (e.g., `IdentityType` vs `CreatedByType` differ in casing of string members — aliasing would break serialization).
+   - *Many-to-one consolidation* (multiple old single-value `*TypeName` enums collapsed into one new consolidated enum; not a 1‑1 rename).
+   - *Different model shape* (e.g., old polymorphic base vs new `*Parameters` subclass of a different base).
+   - *No replacement in new SDK* (functionality removed).
+
+This "unchanged" analysis is what gives the user confidence that the remaining `Deleted or renamed model` lines in the breaking changes are real breakings, not unfinished consolidation work.
 
 ### Step 5: Analyze Breaking Changes and Create Spec PR
 
