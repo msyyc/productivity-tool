@@ -130,6 +130,12 @@ INSERT OR REPLACE INTO session_state (key, value) VALUES
   ('pr_url', '<pr_url>');
 ```
 
+**Update the PR title** to follow the standard pattern (substitute `<package_name>` with the actual package name from session state, e.g., `azure-mgmt-frontdoor`):
+
+```
+gh pr edit <pr_number> --repo Azure/azure-sdk-for-python --title "Refresh <package_name> after migrate to Typespec"
+```
+
 **Report to user:** the SDK PR link.
 
 ### Step 5: Create Worktree and Checkout PR
