@@ -258,6 +258,10 @@ It's often along with a fake `re-ordered` report like:
 ```
 Remove this fake re-order report. Don't change other `re-order` reports that do not represent an operation migration.
 
+### 11. Consolidate Renames and Combined Enums
+
+After applying the rules above, also apply the rename/combine consolidation procedure described in [../../sdk-breaking-check-for-tsp-migration/references/optimize-changelog-consolidate-renames.md](../../sdk-breaking-check-for-tsp-migration/references/optimize-changelog-consolidate-renames.md) to collapse paired `Deleted or renamed model` + `Added model/enum` entries into clearer `Renamed X to Y` (1‑1) or `Combined enum X/Y/... to Z` (many‑1) lines.
+
 ### NOTE
 
 - Declarations about migration docs shall be at the top line in the `### Breaking Changes` section.
