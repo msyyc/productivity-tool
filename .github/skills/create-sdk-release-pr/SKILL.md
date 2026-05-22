@@ -136,6 +136,12 @@ INSERT OR REPLACE INTO session_state (key, value) VALUES
 gh pr edit <pr_number> --repo Azure/azure-sdk-for-python --title "Refresh <package_name> after migrate to Typespec"
 ```
 
+**Mark the PR as ready for review** (the auto-generated PR is created as draft; flip it to normal):
+
+```
+gh pr ready <pr_number> --repo Azure/azure-sdk-for-python
+```
+
 **Report to user:** the SDK PR link.
 
 ### Step 5: Create Worktree and Checkout PR
