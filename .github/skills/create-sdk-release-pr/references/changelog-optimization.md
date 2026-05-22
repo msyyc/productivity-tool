@@ -214,9 +214,11 @@ When only `if_match` is removed (without `if_none_match`):
    - Method `...` replaced positional_or_keyword ... `if_match` to keyword_only ... `etag`/`match_condition`
 ```
 
-### 9. Consolidate Unused List Models
+### 9. Consolidate Unused Pageable Models
 
-When multiple `...List` models are reported as "deleted or renamed" (including models that only contain `next_link` and `value` — typical paging result wrappers; verify by checking the SDK code), replace the individual lines with a single entry and move it to the `### Other Changes` section:
+A "pageable model" is a pageable response wrapper whose only properties are `value`, or `next_link` plus `value`. Their names usually end with `List` but not always — verify by checking the model definition in `_models.py` or `_models_py3.py`.
+
+When multiple pageable models are reported as "deleted or renamed", consolidate them into a single entry under `### Other Changes`:
 
 **Before:**
 ```
@@ -224,15 +226,13 @@ When multiple `...List` models are reported as "deleted or renamed" (including m
 
   - Deleted or renamed model `SkuInformationList`
   - Deleted or renamed model `SnapshotList`
-  - Deleted or renamed model `VolumeGroupList`
-  - Deleted or renamed model `VolumeList`
 ```
 
 **After:**
 ```
 ### Other Changes
 
-  - Deleted model `SkuInformationList`/`SnapshotList`/`VolumeGroupList`/`VolumeList` which actually were not used by SDK users
+  - Deleted model `SkuInformationList`/`SnapshotList` which actually were not used by SDK users
 ```
 
 ### 10. Group Parameter Kind Changes
@@ -270,7 +270,7 @@ When one or more entities are reported as "deleted or renamed" and are NOT refer
 Detection procedure (you MUST verify by checking the SDK source under the package directory, typically `<worktree_path>/sdk/<service-dir>/<package_name>/<package_namespace>/`):
 1. For each `Deleted or renamed model `X`` entry, locate the previous-version source to determine whether `X` is a model or enum (by the defining file name above).
 2. Search the SDK source for any reference to `X` (in `models/_models.py`, `models/_enums.py`, operation files, etc.). If `X` is not referenced by any operation or any other model/enum, it is unused.
-3. Exclude entries already covered by rule 9 (paging `...List` wrappers) or by rule 12's rename/combine consolidation.
+3. Exclude entries already covered by rule 9 (pageable models) or by rule 12's rename/combine consolidation.
 
 Replace the individual lines with consolidated entries under `### Other Changes`, emitting **two separate lines** — one for unused models and one for unused enums (omit a line if its group is empty):
 
