@@ -336,8 +336,8 @@
                     <div class="label">TypeSpec-Azure Repo</div>
                 </div>
                 <div class="stat-card">
-                    <div class="number" id="autorest-python-count">0</div>
-                    <div class="label">Autorest.Python Repo</div>
+                    <div class="number" id="azure-sdk-for-python-count">0</div>
+                    <div class="label">Azure-SDK-For-Python Repo</div>
                 </div>
             </div>
         </div>
@@ -355,7 +355,7 @@
         const REPOS = [
             { owner: 'microsoft', name: 'typespec', fullName: 'microsoft/typespec' },
             { owner: 'Azure', name: 'typespec-azure', fullName: 'Azure/typespec-azure' },
-            { owner: 'Azure', name: 'autorest.python', fullName: 'Azure/autorest.python' }
+            { owner: 'Azure', name: 'azure-sdk-for-python', fullName: 'Azure/azure-sdk-for-python' }
         ];
 
         const USERNAME = 'msyyc';
@@ -518,7 +518,7 @@
                 document.getElementById('total-prs').textContent = totalPRs;
                 document.getElementById('typespec-count').textContent = repoStats['typespec'] || 0;
                 document.getElementById('typespec-azure-count').textContent = repoStats['typespec-azure'] || 0;
-                document.getElementById('autorest-python-count').textContent = repoStats['autorest.python'] || 0;
+                document.getElementById('azure-sdk-for-python-count').textContent = repoStats['azure-sdk-for-python'] || 0;
 
                 // Display PRs by repo
                 results.forEach(({ repo, prs }) => {
