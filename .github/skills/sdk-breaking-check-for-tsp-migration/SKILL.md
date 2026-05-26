@@ -37,7 +37,8 @@ Typical wall-clock times observed per step (may vary by package size and network
 | Step 4.5 | ~30 sec | Changelog rename consolidation |
 | Step 5 | ~2 min | Classification + PR creation |
 | Step 6 | ~1 min | Changelog optimization (subagent) |
-| **Total** | **~19 min** | End-to-end for a typical package |
+| Step 7 | ~1 min | Mitigate any new renames surfaced by Step 6 (often a no-op) |
+| **Total** | **~20 min** | End-to-end for a typical package |
 
 ## Prerequisites
 
@@ -500,6 +501,78 @@ This step is **independent** — delegate it to a **subagent** following the sha
 - `skip_rules` — `[11]` (rule 11 — consolidating renames and combined enums — was already applied in Step 4.5)
 
 **Report to user:** the summary returned by the subagent.
+
+### Step 7: Mitigate New Renames Surfaced by Step 6
+
+The changelog optimization in Step 6 may surface additional model/enum **rename** breaking changes that were not visible in the raw changelog used by Step 5 (for example, renames revealed after consolidating list-model removals, grouping operations, or other rule rewrites). These new renames must be mitigated with `@clientName` decorators and committed to the **same spec mitigation PR** created in Step 5.
+
+**Read session state:**
+
+```sql
+SELECT key, value FROM session_state
+WHERE key IN ('package_name', 'spec_folder', 'has_breaking_changes', 'sdk_package_path',
+              'changelog_path', 'spec_worktree', 'spec_branch', 'github_username',
+              'sdk_worktree', 'pr_number', 'pr_head_ref', 'pr_head_owner');
+```
+
+If `has_breaking_changes` is `false`, skip this step.
+
+**Detect new renames:**
+
+1. Read the CHANGELOG.md at `changelog_path` and extract the latest version section (from the first `## ` heading to the next `## ` heading, or end-of-file).
+2. Scan for **model/enum rename** entries that affect public surface, specifically lines matching patterns such as:
+   - `Renamed model <Old> to <New>`
+   - `Renamed enum <Old> to <New>`
+
+   Ignore `Combined enum ...` entries — those do not require mitigation in this step.
+3. Cross-reference each rename against the spec mitigations already committed in Step 5 (inspect `<spec_worktree>/<spec_folder>/client.tsp`). Any rename **not** already covered by an existing `@@clientName` is a new mitigation candidate.
+
+If no new renames remain, report "No additional mitigations needed" and stop.
+
+**Generate mitigations:**
+
+For each new rename:
+
+1. Classify it per `<skill-dir>/references/breaking-changes-guide.md` (renames are typically **MITIGATE**).
+2. Locate the TypeSpec model/enum definition in `<spec_worktree>/<spec_folder>/`.
+3. Append the appropriate `@@clientName(...)` decorator to `<spec_worktree>/<spec_folder>/client.tsp` (do not create a second `client.tsp`).
+4. Format the edits:
+
+   ```
+   cd <spec_worktree>
+   npx tsv <spec_folder>
+   ```
+
+   (`npm ci` was already run in Step 5; no need to repeat.)
+
+**Commit and push:**
+
+```
+cd <spec_worktree>
+git add <spec_folder>/client.tsp
+git commit -m "Mitigate additional Python SDK model/enum renames for {package_name}"
+git push <github_username> HEAD
+```
+
+> **Important:** Stage only `client.tsp` by explicit path — same rule as Step 5. Never use `git add .` in the spec worktree.
+
+**Determine whether a spec PR already exists:**
+
+A spec mitigation PR exists from Step 5 only if Step 5 actually generated mitigations. Detect this by querying for an open PR from `<github_username>:<spec_branch>`:
+
+```
+gh pr list --repo Azure/azure-rest-api-specs --head <github_username>:<spec_branch> --state open --json url --jq ".[0].url"
+```
+
+In PR mode, replace the repo with `<pr_head_owner>/azure-rest-api-specs`.
+
+- **If a PR URL is returned:** The push above automatically appends the new commit to that existing PR. **Do not create a new PR.**
+- **If no PR is returned** (Step 5 had no mitigations to create): create a new spec PR now, following the same `gh pr create` command and labels documented in Step 5 (use Package name mode or PR mode based on whether `pr_number` is in session state).
+
+**Report to user:**
+- List of additional renames mitigated (with old → new names)
+- The spec PR URL (either the existing one updated, or the newly created one)
+- Note that the SDK draft PR will need to be regenerated once the spec mitigation PR is merged (or once Step 3 is re-run against the updated spec)
 
 ## Rules
 
