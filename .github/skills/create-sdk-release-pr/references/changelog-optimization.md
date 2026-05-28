@@ -299,6 +299,21 @@ If only one group has entries, emit only that line (e.g., only the `Deleted mode
 
 After applying the rules above, also apply the rename/combine consolidation procedure described in [../../sdk-breaking-check-for-tsp-migration/references/optimize-changelog-consolidate-renames.md](../../sdk-breaking-check-for-tsp-migration/references/optimize-changelog-consolidate-renames.md) to collapse paired `Deleted or renamed model` + `Added model/enum` entries into clearer `Renamed X to Y` (1‑1) or `Combined enum X/Y/... to Z` (many‑1) lines.
 
+### 13. Deduplicate Return Type Changes for Async/Sync Pairs
+
+When a `Method X.Y changed return type ...` entry appears twice for the same method name — once for the async client (return type contains `AsyncIterator`, `AsyncLROPoller`, `AsyncItemPaged`, etc.) and once for the sync client — keep only the sync entry.
+
+**Before:**
+```
+  - Method `RunbookOperations.get_content` changed return type from `AsyncIterator[bytes]` to `str`
+  - Method `RunbookOperations.get_content` changed return type from `Iterator[bytes]` to `str`
+```
+
+**After:**
+```
+  - Method `RunbookOperations.get_content` changed return type from `Iterator[bytes]` to `str`
+```
+
 ### NOTE
 
 - Declarations about migration docs shall be at the top line in the `### Breaking Changes` section.
