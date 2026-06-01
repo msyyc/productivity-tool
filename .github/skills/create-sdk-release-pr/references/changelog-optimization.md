@@ -318,3 +318,4 @@ When a `Method X.Y changed return type ...` entry appears twice for the same met
 
 - Declarations about migration docs shall be at the top line in the `### Breaking Changes` section.
 - Only check the latest part of the changelog.
+- Preserve the original trailing blank line at the end of the optimized version section (i.e., keep exactly one blank line before the next `## ` version heading, or before EOF if it is the last section). Do not collapse this blank line away while editing.
