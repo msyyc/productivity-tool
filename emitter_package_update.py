@@ -123,38 +123,60 @@ def reset_and_sync(repo_path: Path) -> None:
     run_command("git pull origin main", cwd=repo_path)
 
 
-def get_latest_version(repo_path: Path) -> str:
-    """Determine the latest @azure-tools/typespec-python version."""
-    print("\n[Step 2] Determining latest version...")
-
-    result = run_command("npx npm-check-updates --packageFile eng/emitter-package.json", cwd=repo_path)
-
-    # Parse the output to extract the version
-    # Example output line: "@azure-tools/typespec-python  0.45.0  →  0.46.4"
-    output = result.stdout + result.stderr
-    match = re.search(r"@azure-tools/typespec-python\s+[\d.]+\s+→\s+([\d.]+)", output)
-
-    if not match:
-        # Try alternative pattern (may vary by npm-check-updates version)
-        match = re.search(r"@azure-tools/typespec-python.*?([\d]+\.[\d]+\.[\d]+)\s*$", output, re.MULTILINE)
-
-    if not match:
-        raise RuntimeError(
-            "Could not determine latest version of @azure-tools/typespec-python. "
-            "Check if there are updates available."
-        )
-
-    version = match.group(1)
-    print(f"  Latest version: {version}")
-
-    return version
+TYPESPEC_PYTHON = "@azure-tools/typespec-python"
+EMITTER_PACKAGE_SECTIONS = ("dependencies", "devDependencies", "overrides")
 
 
-def create_feature_branch(repo_path: Path, version: str) -> str:
-    """Create a new feature branch for the version bump."""
+def read_emitter_package(repo_path: Path) -> dict:
+    """Read and parse eng/emitter-package.json."""
+    emitter_package_path = repo_path / "eng" / "emitter-package.json"
+    with open(emitter_package_path, "r") as f:
+        return json.load(f)
+
+
+def get_package_version(emitter_package: dict, package: str) -> str | None:
+    """Look up a package version across the known dependency sections."""
+    for section in EMITTER_PACKAGE_SECTIONS:
+        if package in emitter_package.get(section, {}):
+            return emitter_package[section][package]
+    return None
+
+
+def emitter_package_has_changes(repo_path: Path) -> bool:
+    """Return True if eng/emitter-package.json differs from HEAD."""
+    result = run_command(
+        "git diff --quiet -- eng/emitter-package.json", cwd=repo_path, check=False
+    )
+    # git diff --quiet exits with 1 when there are differences, 0 when there are none.
+    return result.returncode != 0
+
+
+def discard_emitter_package_changes(repo_path: Path) -> None:
+    """Revert any local edits to eng/emitter-package.json."""
+    run_command("git checkout -- eng/emitter-package.json", cwd=repo_path, check=False)
+
+
+def pin_package_version(repo_path: Path, package: str, version: str) -> None:
+    """Force a specific version for a package in eng/emitter-package.json."""
+    emitter_package_path = repo_path / "eng" / "emitter-package.json"
+    emitter_package = read_emitter_package(repo_path)
+
+    for section in EMITTER_PACKAGE_SECTIONS:
+        if package in emitter_package.get(section, {}):
+            emitter_package[section][package] = version
+            break
+    else:
+        emitter_package.setdefault("dependencies", {})[package] = version
+
+    with open(emitter_package_path, "w") as f:
+        json.dump(emitter_package, f, indent=2)
+        f.write("\n")
+    print(f"  Pinned {package} to {version}")
+
+
+def create_feature_branch(repo_path: Path, branch_name: str) -> str:
+    """Create a new feature branch, carrying over the working-tree changes."""
     print("\n[Step 3] Creating feature branch...")
-
-    branch_name = f"bump-typespec-python-{version}"
 
     run_command(f"git checkout -b {branch_name}", cwd=repo_path)
     print(f"  Created branch: {branch_name}")
@@ -239,25 +261,22 @@ def generate_lock_file(repo_path: Path) -> None:
     print("  emitter-package-lock.json regenerated.")
 
 
-def commit_changes(repo_path: Path, version: str) -> None:
+def commit_changes(repo_path: Path, message: str) -> None:
     """Stage and commit the changes."""
     print("\n[Step 7] Committing changes...")
 
     run_command("git add eng/emitter-package.json eng/emitter-package-lock.json", cwd=repo_path)
-    run_command(f'git commit -m "bump typespec-python {version}"', cwd=repo_path)
+    run_command(f'git commit -m "{message}"', cwd=repo_path)
     print("  Changes committed.")
 
 
-def push_and_create_pr(repo_path: Path, branch_name: str, version: str) -> str | None:
+def push_and_create_pr(repo_path: Path, branch_name: str, title: str, body: str) -> str | None:
     """Push the branch and create a PR. Returns the PR URL if successful."""
     print("\n[Step 8] Pushing branch...")
 
     run_command(f"git push -u origin {branch_name}", cwd=repo_path)
 
     print("\n[Step 9] Creating PR...")
-
-    title = f"bump typespec-python {version}"
-    body = f"Bump @azure-tools/typespec-python to version {version}"
 
     result = run_command(f'gh pr create --title "{title}" --body "{body}"', cwd=repo_path)
     print("  PR created successfully!")
@@ -313,39 +332,64 @@ examples:
         # Step 1: Reset and sync
         reset_and_sync(repo_path)
 
-        # Step 2: Determine latest version
-        if args.version:
-            version = args.version
-            print(f"\n[Step 2] Using specified version: {version}")
-        else:
-            version = get_latest_version(repo_path)
+        # Record the typespec-python version before any updates.
+        old_typespec_version = get_package_version(read_emitter_package(repo_path), TYPESPEC_PYTHON)
 
-        # Step 3: Create feature branch
-        branch_name = create_feature_branch(repo_path, version)
-
-        # Step 4: Update dependencies
+        # Step 2: Apply updates on the working tree (still on main).
+        print("\n[Step 2] Updating dependencies...")
         update_dependencies(repo_path)
-
-        # Step 5: Align packages with spec repo
         align_spec_repo_versions(repo_path)
+
+        # If a specific version was requested, pin typespec-python to it.
+        if args.version:
+            pin_package_version(repo_path, TYPESPEC_PYTHON, args.version)
+
+        # Determine whether anything actually changed across all dependencies.
+        if not emitter_package_has_changes(repo_path):
+            discard_emitter_package_changes(repo_path)
+            print("\n" + "=" * 50)
+            print("All dependencies are already up to date. Nothing to change.")
+            print("=" * 50)
+            return
+
+        # Read the (possibly updated) typespec-python version for naming/messages.
+        new_typespec_version = get_package_version(read_emitter_package(repo_path), TYPESPEC_PYTHON)
+        typespec_bumped = new_typespec_version is not None and new_typespec_version != old_typespec_version
+
+        if typespec_bumped:
+            branch_name = f"bump-typespec-python-{new_typespec_version}"
+            commit_message = f"bump typespec-python {new_typespec_version}"
+            pr_title = f"bump typespec-python {new_typespec_version}"
+            pr_body = f"Bump {TYPESPEC_PYTHON} to version {new_typespec_version}"
+        else:
+            branch_name = "update-emitter-package-dependencies"
+            commit_message = "update emitter-package dependencies"
+            pr_title = "update emitter-package dependencies"
+            pr_body = "Update emitter-package.json dependencies to their latest aligned versions."
+
+        # Step 3: Create feature branch (carries over the working-tree changes).
+        create_feature_branch(repo_path, branch_name)
 
         # Step 6: Generate lock file
         generate_lock_file(repo_path)
 
         # Step 7: Commit changes
-        commit_changes(repo_path, version)
+        commit_changes(repo_path, commit_message)
 
         # Step 8-9: Push and create PR
         if args.skip_pr:
             print("\n[Step 8-9] Skipping PR creation (--skip-pr flag)")
         else:
-            pr_url = push_and_create_pr(repo_path, branch_name, version)
+            pr_url = push_and_create_pr(repo_path, branch_name, pr_title, pr_body)
             if pr_url:
                 show_pr_link_window(pr_url)
 
         print("\n" + "=" * 50)
         print("Emitter package update completed successfully!")
-        print(f"Version: {version}")
+        if typespec_bumped:
+            print(f"typespec-python: {old_typespec_version} -> {new_typespec_version}")
+        else:
+            print("typespec-python unchanged; other dependencies were updated.")
         print("=" * 50)
 
     except Exception as e:
