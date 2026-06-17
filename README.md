@@ -148,5 +148,28 @@ python update_sdk_version.py https://github.com/Azure/azure-sdk-for-python/pull/
 - GitHub CLI (`gh`) authenticated with access to the SDK repo
 - Git configured with repository access
 
+## typespec_azure_python_bump.py
+A Python script to automate bumping the `@typespec/http-client-python` dependency and syncing test cases in the Azure/typespec-azure repository. It handles the full workflow including version update in pnpm-workspace.yaml, dependency installation, test case sync, and PR creation.
+
+### Usage
+```bash
+# Basic usage (bumps to latest npm version)
+python typespec_azure_python_bump.py <path_to_typespec_azure_repo>
+
+# Specify a specific version
+python typespec_azure_python_bump.py <path_to_typespec_azure_repo> --version 0.32.0
+
+# Skip PR creation (for testing)
+python typespec_azure_python_bump.py <path_to_typespec_azure_repo> --skip-pr
+
+# Example
+python typespec_azure_python_bump.py C:\dev\typespec-azure
+```
+
+### Requirements
+- Node.js and pnpm
+- GitHub CLI (`gh`) for PR creation
+- Git configured with repository access
+
 ## pr-tracker.html
 A single-page HTML dashboard that tracks open GitHub PRs authored by or assigned to `msyyc` across the `microsoft/typespec`, `Azure/typespec-azure`, and `Azure/autorest.python` repositories. It also includes PRs labeled `emitter:client:python` in the typespec repo. The page displays PR stats, CI status, labels, and supports a hardcoded ignore list to hide specific PR numbers. Just open the file in a browser — no build step required.
