@@ -14,6 +14,8 @@ import webbrowser
 from datetime import datetime
 from pathlib import Path
 
+from packaging import version
+
 
 def show_pr_link_window(pr_url: str) -> None:
     """Display a window with a clickable PR hyperlink."""
@@ -87,7 +89,8 @@ def reset_and_sync(repo_path: Path) -> None:
 
     run_command("git reset HEAD", cwd=repo_path, check=False)
     run_command("git checkout .", cwd=repo_path)
-    run_command("git checkout origin/main", cwd=repo_path)
+    run_command("git fetch origin main", cwd=repo_path)
+    run_command("git checkout main", cwd=repo_path)
     run_command("git pull origin main", cwd=repo_path)
 
     # Ensure submodules are initialized
@@ -111,7 +114,10 @@ def create_release_branch(repo_path: Path) -> str:
 def get_current_version(repo_path: Path) -> str:
     """Get the current version of @typespec/http-client-python from pnpm-workspace.yaml."""
     workspace_file = repo_path / "pnpm-workspace.yaml"
-    content = workspace_file.read_text(encoding="utf-8")
+    try:
+        content = workspace_file.read_text(encoding="utf-8")
+    except (OSError, IOError) as e:
+        raise RuntimeError(f"Failed to read pnpm-workspace.yaml: {e}")
     
     # Match pattern like "@typespec/http-client-python": ^0.31.1
     match = re.search(r'"@typespec/http-client-python":\s*\^?([\d.]+)', content)
@@ -135,7 +141,10 @@ def update_version(repo_path: Path, new_version: str) -> None:
     print(f"\n[Step 3] Updating version to ^{new_version}...")
 
     workspace_file = repo_path / "pnpm-workspace.yaml"
-    content = workspace_file.read_text(encoding="utf-8")
+    try:
+        content = workspace_file.read_text(encoding="utf-8")
+    except (OSError, IOError) as e:
+        raise RuntimeError(f"Failed to read pnpm-workspace.yaml: {e}")
     
     # Replace the version
     new_content = re.sub(
@@ -144,7 +153,10 @@ def update_version(repo_path: Path, new_version: str) -> None:
         content
     )
     
-    workspace_file.write_text(new_content, encoding="utf-8")
+    try:
+        workspace_file.write_text(new_content, encoding="utf-8")
+    except (OSError, IOError) as e:
+        raise RuntimeError(f"Failed to write pnpm-workspace.yaml: {e}")
     print(f"  Updated pnpm-workspace.yaml")
 
 
@@ -243,9 +255,16 @@ examples:
 
         print(f"  Target version: {new_version}")
 
-        if current_version == new_version:
-            print(f"\n  Already at version {new_version}. Nothing to do.")
-            sys.exit(0)
+        # Use semantic version comparison
+        try:
+            if version.parse(current_version) >= version.parse(new_version):
+                print(f"\n  Already at version {current_version} (>= {new_version}). Nothing to do.")
+                sys.exit(0)
+        except version.InvalidVersion:
+            # Fall back to string comparison if parsing fails
+            if current_version == new_version:
+                print(f"\n  Already at version {new_version}. Nothing to do.")
+                sys.exit(0)
 
         # Step 2: Create release branch
         branch_name = create_release_branch(repo_path)
