@@ -88,13 +88,12 @@ def reset_and_sync(repo_path: Path) -> None:
     print("\n[Step 1] Resetting and syncing with main...")
 
     run_command("git reset HEAD", cwd=repo_path, check=False)
-    run_command("git checkout .", cwd=repo_path)
-    run_command("git fetch origin main", cwd=repo_path)
+    run_command("git restore .", cwd=repo_path)
     run_command("git checkout main", cwd=repo_path)
     run_command("git pull origin main", cwd=repo_path)
 
-    # Ensure submodules are initialized
-    print("  Initializing submodules...")
+    # Initialize and update submodules recursively
+    print("  Initializing and updating submodules...")
     run_command("git submodule update --init --recursive", cwd=repo_path)
 
 
@@ -201,7 +200,7 @@ def push_and_create_pr(repo_path: Path, branch_name: str, new_version: str) -> s
 
     # Extract PR URL from output
     pr_url = None
-    output = result.stdout + result.stderr
+    output = result.stdout + "\n" + result.stderr
     url_match = re.search(r"https://github\.com/[^\s]+/pull/\d+", output)
     if url_match:
         pr_url = url_match.group(0)
