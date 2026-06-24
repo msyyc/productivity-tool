@@ -70,7 +70,9 @@ from urllib.request import Request, urlopen
 PACKAGE_NAME = "<package-name>"
 VERSION = "<version>"  # default "0.0.0"
 
-# Get an Azure DevOps access token
+# Get an Azure DevOps access token.
+# 499b84ac-1321-427f-aa17-267ca6975798 is the well-known PUBLIC Azure DevOps
+# resource/application ID (not a secret) used to scope the token to Azure DevOps.
 token = subprocess.run(
     "az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv",
     shell=True, capture_output=True, text=True
@@ -120,6 +122,8 @@ from urllib.error import HTTPError
 BUILD_ID = <build_id>
 PACKAGE_NAME = "<package-name>"
 
+# 499b84ac-1321-427f-aa17-267ca6975798 is the well-known PUBLIC Azure DevOps
+# resource/application ID (not a secret) used to scope the token to Azure DevOps.
 token = subprocess.run(
     "az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv",
     shell=True, capture_output=True, text=True
