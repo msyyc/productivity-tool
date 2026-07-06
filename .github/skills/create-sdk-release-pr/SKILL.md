@@ -18,6 +18,7 @@ Trigger the Azure DevOps "SDK Generation - Python" pipeline for a package, wait 
 - **SDK package name** (required): e.g., `azure-mgmt-frontdoor`
 - **api-version** (optional): e.g., `2020-01-01`. If not provided, auto-detected from `main.tsp` in Step 1.
 - **release-type** (optional): `beta` or `stable`. If not provided, inferred from api-version: `beta` if it contains `preview`, otherwise `stable`.
+- **SDK PR or SDK branch** (optional): if the user explicitly asks to base generation on an existing SDK PR or SDK branch, resolve it to an SDK repository branch and pass it as `SdkRepoBranch` when triggering the pipeline.
 
 ## Workflow
 
@@ -47,14 +48,30 @@ INSERT OR REPLACE INTO session_state (key, value) VALUES
 
 ### Step 2: Trigger Pipeline
 
-Trigger the "SDK Generation - Python" pipeline (definitionId=7423) using the helper script:
+Trigger the "SDK Generation - Python" pipeline (definitionId=7423) using the helper script.
+
+If the user explicitly provided an existing SDK PR or SDK branch:
+- For an SDK branch, use the branch name directly as `sdk_repo_branch`.
+- For an SDK PR URL or number, resolve the PR head branch first:
+  ```
+  gh pr view <sdk-pr-url-or-number> --repo Azure/azure-sdk-for-python --json headRefName --jq .headRefName
+  ```
+- Pass the resolved branch as `sdk_repo_branch`. Do not pass `SdkRepoBranch` unless the user explicitly requested an existing SDK PR or branch.
+
+Use the helper script:
 
 ```python
 import subprocess, json, sys
 sys.path.insert(0, "<skill-dir>/scripts")
 from build_pipeline_command import build_pipeline_command
 
-cmd = build_pipeline_command("<config_path>", "<release_type>", "<api_version>")
+sdk_repo_branch = "<resolved_sdk_branch>"  # or None if the user did not request an existing SDK PR/branch
+cmd = build_pipeline_command(
+    "<config_path>",
+    "<release_type>",
+    "<api_version>",
+  sdk_repo_branch=sdk_repo_branch,
+)
 result = subprocess.run(cmd, capture_output=True, text=True)
 output = json.loads(result.stdout)
 ```
@@ -69,6 +86,7 @@ az pipelines run --id 7423 --org https://dev.azure.com/azure-sdk --project inter
     SdkReleaseType=<release_type> `
     CreatePullRequest=true `
     ApiVersion=<api_version> `
+    [SdkRepoBranch=<sdk_repo_branch>] `
   --output json
 ```
 
@@ -76,6 +94,7 @@ az pipelines run --id 7423 --org https://dev.azure.com/azure-sdk --project inter
 
 - `ConfigType=TypeSpec` is required for TypeSpec-based configs.
 - `ApiVersion` is required. Use the user-provided value, or the auto-detected value from Step 1.
+- `SdkRepoBranch` is optional. Include it only when the user explicitly requested generation based on an existing SDK PR or SDK branch.
 - If `release-type` is not provided, infer it from the API version: if the version string contains `preview`, use `beta`; otherwise use `stable`.
 
 **Parse the JSON output** to extract:

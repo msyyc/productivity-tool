@@ -16,6 +16,7 @@ def build_pipeline_command(
     api_version: str,
     branch: str = "main",
     create_pr: bool = True,
+    sdk_repo_branch: str | None = None,
 ) -> list[str]:
     """Return the az pipelines run command as a list of argument tokens.
 
@@ -32,6 +33,19 @@ def build_pipeline_command(
     if not api_version:
         raise ValueError("api_version is required")
 
+    if sdk_repo_branch is not None and not sdk_repo_branch.strip():
+        raise ValueError("sdk_repo_branch must not be empty when provided")
+
+    parameters = [
+        f"ConfigPath={config_path}",
+        "ConfigType=TypeSpec",
+        f"SdkReleaseType={release_type}",
+        f"CreatePullRequest={'true' if create_pr else 'false'}",
+        f"ApiVersion={api_version}",
+    ]
+    if sdk_repo_branch is not None:
+        parameters.append(f"SdkRepoBranch={sdk_repo_branch}")
+
     return [
         "az",
         "pipelines",
@@ -45,11 +59,7 @@ def build_pipeline_command(
         "--branch",
         branch,
         "--parameters",
-        f"ConfigPath={config_path}",
-        "ConfigType=TypeSpec",
-        f"SdkReleaseType={release_type}",
-        f"CreatePullRequest={'true' if create_pr else 'false'}",
-        f"ApiVersion={api_version}",
+        *parameters,
         "--output",
         "json",
     ]

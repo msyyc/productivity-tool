@@ -99,6 +99,15 @@ class TestBuildPipelineCommand:
         tokens = build_pipeline_command(self.SAMPLE_PATH, "beta", "2026-01-15-preview")
         assert "ApiVersion=2026-01-15-preview" in tokens
 
+    def test_sdk_repo_branch_in_command_when_provided(self):
+        tokens = build_pipeline_command(
+            self.SAMPLE_PATH,
+            "beta",
+            "2025-05-01",
+            sdk_repo_branch="feature/existing-sdk-pr",
+        )
+        assert "SdkRepoBranch=feature/existing-sdk-pr" in tokens
+
 
 # ── Input validation ─────────────────────────────────────────────────────
 
@@ -120,6 +129,15 @@ class TestInputValidation:
     def test_rejects_empty_api_version(self):
         with pytest.raises(ValueError, match="api_version"):
             build_pipeline_command("specification/foo/tspconfig.yaml", "beta", "")
+
+    def test_rejects_empty_sdk_repo_branch_when_provided(self):
+        with pytest.raises(ValueError, match="sdk_repo_branch"):
+            build_pipeline_command(
+                "specification/foo/tspconfig.yaml",
+                "beta",
+                "2025-05-01",
+                sdk_repo_branch=" ",
+            )
 
 
 # ── SKILL.md validation ──────────────────────────────────────────────────
