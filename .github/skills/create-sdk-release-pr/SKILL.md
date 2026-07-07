@@ -216,7 +216,39 @@ This step is **independent** — delegate it to a **subagent** following the sha
 
 **Report to user:** the summary returned by the subagent.
 
-### Step 7: Run Live Tests
+### Step 7: Prepare Test Dependencies and Client Names
+
+Before running live tests, inspect the SDK package in the worktree and make these small test-readiness fixes when needed.
+
+#### Ensure `aiohttp` is in dev requirements
+
+Locate the package's `dev_requirements.txt`, typically:
+
+```
+<worktree_path>/sdk/<service-dir>/<package_name>/dev_requirements.txt
+```
+
+If `aiohttp` is not already listed in that file, add it on its own line. Preserve the file's existing ordering/style where practical.
+
+#### Fix tests when client name changed
+
+Check whether the generated SDK client class name changed compared with existing tests under the package `tests/` folder. If a client name change is detected:
+- Update affected tests under `tests/` to import and instantiate the current generated client name.
+- Prefer direct replacements in test code only; do not rename generated SDK client classes.
+- Keep the existing test behavior intact aside from the client name update.
+- Review all `tests/` references to the old client name before proceeding.
+
+**Commit and push if changes were made:**
+
+```
+cd <worktree_path>
+git add sdk/<service-dir>/<package_name>/dev_requirements.txt sdk/<service-dir>/<package_name>/tests
+git diff --staged --quiet || (git commit -m "Prepare tests for <package_name>" && git push)
+```
+
+**Report to user:** whether `aiohttp` was added and whether any test client name references were fixed.
+
+### Step 8: Run Live Tests
 
 Run live tests on the SDK package in the worktree. This step uses the bundled `run_live_tests.py` script in two phases.
 
