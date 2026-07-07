@@ -1,6 +1,6 @@
 ---
 name: verify-python-package-name
-description: Use when reviewing an automated Python SDK pull request and you need to verify whether the Python package/namespace name was approved through a "Board Review: Management Plane Namespace Review" issue. Triggers on requests to verify a Python package/namespace, check namespace review status, or review an automated Python SDK PR.
+description: 'Use when reviewing an automated Python SDK pull request and you need to verify whether the Python package/namespace name was approved through a "Board Review: Management Plane Namespace Review" issue. Triggers on requests to verify a Python package/namespace, check namespace review status, or review an automated Python SDK PR.'
 ---
 
 # Verify Python Package Name
