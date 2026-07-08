@@ -248,7 +248,33 @@ git diff --staged --quiet || (git commit -m "Prepare tests for <package_name>" &
 
 **Report to user:** whether `aiohttp` was added and whether any test client name references were fixed.
 
-### Step 8: Run Live Tests
+### Step 8: Delete Disabled Test Files
+
+Before running live tests, delete test files in the package `tests/` folder whose file name starts with `disable_`.
+
+Locate the package's `tests/` folder, typically:
+
+```
+<worktree_path>/sdk/<service-dir>/<package_name>/tests
+```
+
+Delete matching files only from that folder:
+
+```
+Get-ChildItem <tests-folder> -File -Filter "disable_*" | Remove-Item
+```
+
+**Commit and push if changes were made:**
+
+```
+cd <worktree_path>
+git add sdk/<service-dir>/<package_name>/tests
+git diff --staged --quiet || (git commit -m "Remove disabled tests for <package_name>" && git push)
+```
+
+**Report to user:** whether any `disable_` test files were deleted.
+
+### Step 9: Run Live Tests
 
 Run live tests on the SDK package in the worktree. This step uses the bundled `run_live_tests.py` script in two phases.
 
