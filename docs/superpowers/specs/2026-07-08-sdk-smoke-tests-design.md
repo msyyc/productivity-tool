@@ -92,15 +92,22 @@ Sparse checkout at a single commit preserves each service's `tspconfig.yaml`,
 `examples/`, and cross-service imports consistently. The cache dir is
 `.gitignore`d; only generated snapshots are committed.
 
-### 3. Per-emitter generate + snapshot
+### 3. Layout: shared common script + per-emitter snapshot
 
-Each emitter package gains a `smoke-test` script reusing its existing
-regenerate machinery:
+The language-agnostic pieces live once at the repo root and are called by every
+emitter; only generation is per-language.
 
 ```
-<emitter-pkg>/smoke-test/
-  generated/
-    compute-resource-manager/   # committed baseline snapshot
+smoke-test/
+  smoke-test-config.json        # shared config (§1)
+  smoke-test-common.ts          # SHARED cross-emitter script (§4 Common)
+  README.md                     # selection criteria + how-to
+  .specs-cache/<commit>/        # git-ignored fetched specs (§2)
+
+packages/typespec-python/
+  eng/scripts/ci/regenerate-smoke.ts   # Python command (§4 Command 1)
+  smoke-test/generated/
+    compute-resource-manager/          # committed baseline snapshot
     <service-2>/ ...
 ```
 
@@ -111,42 +118,57 @@ regenerate machinery:
   where present, so output matches the real SDK pipeline.
 - Snapshots are formatted/linted with the same rules used today, so diffs stay
   semantic rather than cosmetic.
-- Shared config + fetch at repo root; only the `generate→snapshot` adapter is
-  per-language, so `typespec-ts`/`typespec-java` add their own
-  `smoke-test/generated/` later with zero changes to shared code.
+- Because config, fetch, and diff-check are all in the shared
+  `smoke-test-common.ts`, adding `typespec-ts`/`typespec-java` later means only
+  writing their own `regenerate-smoke.ts` + `smoke-test/generated/` — zero
+  changes to shared code.
 
-### 4. Commands: generate + diff check
+### 4. Commands
 
-Two commands cover the workflow. **CI triggering (when/where these run) is out of
-scope and tracked in a separate issue** — this design only defines the commands.
+**CI triggering (when/where these run) is out of scope and tracked in a separate
+issue** — this design only defines the commands and the shared script they call.
 
-#### Command 1 — generate (new): `smoke-test:generate`
+#### Common (shared, all emitters): `smoke-test/smoke-test-common.ts`
 
-A new script (e.g. `packages/typespec-python/eng/scripts/ci/smoke-test.ts`,
-exposed as a package script) that:
+A single language-agnostic script that every emitter calls, so the non-language
+logic is written once. It exposes:
 
-1. Reads `smoke-test/smoke-test-config.json`.
-2. Runs the shared fetch step (sparse checkout at the pinned commit → local tsp
-   entrypoints + manifest).
-3. Drives the **existing** two-phase regenerate machinery
-   (`regenerate-common.ts`) with the fetched real-service entrypoints as input
-   and `smoke-test/generated/<service>/` as output.
+- `loadConfig()` — parse and validate `smoke-test/smoke-test-config.json`.
+- `fetchSpecs(config)` — sparse, shallow checkout of the pinned commit into
+  `smoke-test/.specs-cache/<commit>/`; returns the resolved manifest (per
+  service → local tsp entrypoint + `tspconfig.yaml` presence). Commit-keyed
+  cache, so repeated/cross-emitter runs don't re-clone.
+- `checkDiff(snapshotDir)` — the diff-check step: runs `git diff --exit-code`
+  scoped to the emitter's snapshot dir (delegating to / mirroring the existing
+  `eng/scripts/check-for-changed-files.js` behavior), printing the diff and
+  exiting non-zero on any drift.
 
-It reuses the proven helpers (`buildTaskGroups`, `runParallel`,
-`prepareBaselineOfGeneratedCode`, formatting/lint) rather than reimplementing
-generation — the only new logic is "config + fetch → point regenerate at these
-specs / this output folder." Flags mirror `regenerate` (`--name`, `--debug`,
-`--jobs`).
+New languages adopt smoke tests by calling these three helpers from their own
+`regenerate-smoke.ts`; they never reimplement config parsing, fetching, or
+diffing.
 
-#### Command 2 — diff check (reuse existing): `check-for-changed-files.js`
+#### Command 1 — Python generate (new): `regenerate-smoke.ts`
 
-No new diff tooling is needed. The snapshots under `smoke-test/generated/` are
-committed, so the check is: **run `smoke-test:generate`, then run the existing
-`eng/scripts/check-for-changed-files.js`**, which does `git diff` and exits 1 if
-regeneration produced any uncommitted change (it already covers both the `core`
-submodule and the typespec-azure repo). Optionally a thin `smoke-test:check`
-alias = `smoke-test:generate` then that check, with a scoped
-`git diff --exit-code -- smoke-test/generated` for a targeted failure message.
+A new script `packages/typespec-python/eng/scripts/ci/regenerate-smoke.ts`
+(exposed as an npm script, e.g. `regenerate:smoke`) that:
+
+1. Calls the common `loadConfig()` + `fetchSpecs()` to get the fetched
+   real-service entrypoints.
+2. Drives the **existing** two-phase regenerate machinery
+   (`regenerate-common.ts`) with those entrypoints as input and
+   `packages/typespec-python/smoke-test/generated/<service>/` as output.
+3. Reuses the proven helpers (`buildTaskGroups`, `runParallel`,
+   `prepareBaselineOfGeneratedCode`, formatting/lint) — the only new logic is
+   "config + fetched specs → point regenerate at these specs / this output
+   folder." Flags mirror `regenerate` (`--name`, `--debug`, `--jobs`), plus an
+   optional `--check` that calls the common `checkDiff()` after generating.
+
+#### Command 2 — diff check
+
+`regenerate-smoke.ts --check` (or CI running `regenerate-smoke.ts` then the
+shared `checkDiff` / existing `check-for-changed-files.js`). Because snapshots
+under `smoke-test/generated/` are committed, the check is simply: regenerate,
+then fail if `git diff` is non-empty. No fuzzy/semantic diffing.
 
 - **Contract:** committed snapshot must equal freshly generated output; any
   difference fails, so every generated-code change is reviewed in the PR that
@@ -158,10 +180,10 @@ alias = `smoke-test:generate` then that check, with a scoped
 
 ### 5. Updating the baseline
 
-- Running `smoke-test:generate` rewrites the snapshots in place; commit the
+- Running `regenerate-smoke.ts` rewrites the snapshots in place; commit the
   result to accept the new baseline.
 - Bumping to newer upstream specs = change `commit` in the config, run
-  `smoke-test:generate`, commit. One PR shows the full cross-cutting SDK impact
+  `regenerate-smoke.ts`, commit. One PR shows the full cross-cutting SDK impact
   of the bump.
 
 ### 6. Validating the framework itself
@@ -173,13 +195,15 @@ alias = `smoke-test:generate` then that check, with a scoped
 
 ## Rollout
 
-1. Land shared config + fetch + the Python `smoke-test:generate` command with
-   the initial services (Compute first; grow to ~5 covering the scenario matrix).
-2. Commit the initial snapshots and wire `check-for-changed-files.js` to cover
-   them (diff-check command).
+1. Land the shared `smoke-test-common.ts` (config + fetch + diff) and the Python
+   `regenerate-smoke.ts` command with the initial services (Compute first; grow
+   to ~5 covering the scenario matrix).
+2. Commit the initial snapshots; the diff-check runs via
+   `regenerate-smoke.ts --check` / the shared `checkDiff`.
 3. Document "how to add a service" and "how to bump the commit."
-4. File follow-up issues for `typespec-ts` / `typespec-java` to add their
-   `smoke-test/generated/` adapters against the same shared config.
+4. File follow-up issues for `typespec-ts` / `typespec-java` to add their own
+   `regenerate-smoke.ts` + `smoke-test/generated/` against the same shared
+   `smoke-test-common.ts`.
 
 **Out of scope (tracked separately):** CI triggering — deciding when/where the
 generate + diff-check commands run on PRs and on a schedule.
