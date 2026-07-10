@@ -31,7 +31,9 @@ resulting SDK code differences as concrete, reviewable diffs.
 ## Non-Goals
 
 - Replacing Spector payload tests.
-- Building a fuzzy "semantic diff" engine (see Diff Detection).
+- Building a fuzzy "semantic diff" engine (see Command 2).
+- CI triggering (when/where the commands run on PRs and on schedule) — tracked
+  in a separate issue.
 - A cross-repo asset/snapshot store (may be revisited later; out of scope for
   the pilot).
 
@@ -113,26 +115,54 @@ regenerate machinery:
   per-language, so `typespec-ts`/`typespec-java` add their own
   `smoke-test/generated/` later with zero changes to shared code.
 
-### 4. Diff detection & CI gating
+### 4. Commands: generate + diff check
 
-- `smoke-test:check` runs fetch → generate → `git diff --exit-code` against the
-  committed snapshot. **Any diff fails CI**, matching the existing `regenerate`
-  contract: every generated-code change is reviewed in the PR that causes it.
-- Triggers: PRs to the monorepo touching TypeSpec/TCGC/emitter/shared codegen,
-  and the emitter's normal CI. For the pilot, only the Python job is wired in
-  and blocking; other languages land as adopt-when-ready.
-- The failure message instructs the author to run
-  `npm run smoke-test -- --update` locally and commit the regenerated snapshot,
-  so an upstream TCGC/emitter change surfaces as a concrete, reviewable SDK diff.
+Two commands cover the workflow. **CI triggering (when/where these run) is out of
+scope and tracked in a separate issue** — this design only defines the commands.
+
+#### Command 1 — generate (new): `smoke-test:generate`
+
+A new script (e.g. `packages/typespec-python/eng/scripts/ci/smoke-test.ts`,
+exposed as a package script) that:
+
+1. Reads `smoke-test/smoke-test-config.json`.
+2. Runs the shared fetch step (sparse checkout at the pinned commit → local tsp
+   entrypoints + manifest).
+3. Drives the **existing** two-phase regenerate machinery
+   (`regenerate-common.ts`) with the fetched real-service entrypoints as input
+   and `smoke-test/generated/<service>/` as output.
+
+It reuses the proven helpers (`buildTaskGroups`, `runParallel`,
+`prepareBaselineOfGeneratedCode`, formatting/lint) rather than reimplementing
+generation — the only new logic is "config + fetch → point regenerate at these
+specs / this output folder." Flags mirror `regenerate` (`--name`, `--debug`,
+`--jobs`).
+
+#### Command 2 — diff check (reuse existing): `check-for-changed-files.js`
+
+No new diff tooling is needed. The snapshots under `smoke-test/generated/` are
+committed, so the check is: **run `smoke-test:generate`, then run the existing
+`eng/scripts/check-for-changed-files.js`**, which does `git diff` and exits 1 if
+regeneration produced any uncommitted change (it already covers both the `core`
+submodule and the typespec-azure repo). Optionally a thin `smoke-test:check`
+alias = `smoke-test:generate` then that check, with a scoped
+`git diff --exit-code -- smoke-test/generated` for a targeted failure message.
+
+- **Contract:** committed snapshot must equal freshly generated output; any
+  difference fails, so every generated-code change is reviewed in the PR that
+  causes it — identical to today's `regenerate` + `check-for-changed-files`
+  pattern.
 - **"Meaningful diff" handling:** volatile bits (version stamps, timestamps) are
   kept *out* of snapshots (as `regenerate` already does) rather than filtered by
   a fuzzy diff — this keeps the signal fully trustworthy.
 
 ### 5. Updating the baseline
 
-- `npm run smoke-test -- --update` regenerates and rewrites snapshots.
+- Running `smoke-test:generate` rewrites the snapshots in place; commit the
+  result to accept the new baseline.
 - Bumping to newer upstream specs = change `commit` in the config, run
-  `--update`, commit. One PR shows the full cross-cutting SDK impact of the bump.
+  `smoke-test:generate`, commit. One PR shows the full cross-cutting SDK impact
+  of the bump.
 
 ### 6. Validating the framework itself
 
@@ -143,12 +173,16 @@ regenerate machinery:
 
 ## Rollout
 
-1. Land shared config + fetch + Python `smoke-test` with the initial services
-   (Compute first; grow to ~5 covering the scenario matrix).
-2. Wire Python `smoke-test:check` into monorepo CI as a blocking check.
+1. Land shared config + fetch + the Python `smoke-test:generate` command with
+   the initial services (Compute first; grow to ~5 covering the scenario matrix).
+2. Commit the initial snapshots and wire `check-for-changed-files.js` to cover
+   them (diff-check command).
 3. Document "how to add a service" and "how to bump the commit."
 4. File follow-up issues for `typespec-ts` / `typespec-java` to add their
    `smoke-test/generated/` adapters against the same shared config.
+
+**Out of scope (tracked separately):** CI triggering — deciding when/where the
+generate + diff-check commands run on PRs and on a schedule.
 
 ## Alternatives Considered
 
