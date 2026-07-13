@@ -188,15 +188,96 @@ the build logs and re-run the reservation.
   After reporting the error, **stop**.
 
 - If the build failed:
+
+  First diagnose the cause (see "Diagnosing a 429 failure"). If it is the PyPI **429
+  `Too many new projects created`** throttle, do **not** give up — **retry the reservation, at least
+  5 attempts, until it succeeds** (re-run Step 2 + Step 3 for the same name). Space attempts out
+  (the throttle is time-based; back-to-back retries just fail again — wait before each retry, and if
+  the cap is exhausted this may need a longer/scheduled gap). Stop early as soon as `pypi_found=True`.
+
+  Only if all retries are exhausted, or the failure is **not** a 429, report and stop:
 ```
 ❌ Reservation failed for <package-name>
 Build: <build_url>
 ```
   Report the failure and the build URL, then **stop**.
 
+## Reserving Multiple Names (Batch) and the PyPI 429 Throttle
+
+### Why batching needs care
+
+The reserve pipeline publishes through a **shared `azure-sdk` PyPI account**. PyPI enforces a
+rate limit on **new project creation** per account (roughly ~20/hour and ~100/day, shared with all
+other Azure SDK releases). When exceeded, the ESRP "Publish to ESRP" task fails with:
+
+```
+Failed Activity : Package Manager., ErrorCode : 2201.
+"429, Too Many Requests ... 429 Too many new projects created"
+... terminal state which is - failDoNotRetry
+```
+
+The ADO build, signing, upload, and auth all succeed — only the final PyPI publish is rejected. This
+is **external throttling, not a pipeline/config bug**. Do NOT debug the pipeline; just retry later.
+
+Key consequences:
+- **Never trigger many new reservations at once** — they will nearly all fail with 429.
+- **Trigger at most one new-name reservation per run**, spaced out (≈1 hour apart is a good default).
+- Because the cap is shared and partly daily, a batch can span **hours or even days**; some names may
+  fail several times before landing on an unthrottled window. This is expected — just keep retrying.
+
+### Diagnosing a 429 failure
+
+When a build fails, fetch the timeline, find the `Publish to ESRP` record, and read its log. If the
+log contains `429` / `Too many new projects created`, it is the throttle (retry later). Only if the
+error is something else should you treat it as a real failure per Step 4.
+
+```python
+# timeline: https://dev.azure.com/azure-sdk/internal/_apis/build/builds/<build_id>/timeline?api-version=7.0
+# find record where name == "Publish to ESRP" and has a "log" -> GET record["log"]["url"]
+# grep the log text for "429" / "Too many new projects created" / "ErrorMessage"
+```
+
+### Retry loop for multiple names
+
+When the user asks to reserve several names and wants them all eventually registered (regardless of
+how long it takes), run a **scheduled retry loop** (e.g. one tick per hour). Track state in a small
+table so it survives across ticks:
+
+```sql
+CREATE TABLE IF NOT EXISTS reservations (
+  name TEXT PRIMARY KEY,
+  registered INTEGER DEFAULT 0,
+  last_build_id INTEGER,
+  last_result TEXT,
+  attempts INTEGER DEFAULT 0
+);
+-- INSERT OR IGNORE one row per requested name.
+```
+
+Each tick:
+1. Select rows where `registered = 0` (candidates). Re-check each on PyPI; if now 200, set
+   `registered = 1` and drop it.
+2. If no candidates remain, report success and **stop the schedule**. Done.
+3. Otherwise pick exactly **one** candidate (random is fine) and trigger the pipeline for it (Step 2).
+4. Poll the build to completion, then verify the name on PyPI (Step 3). PyPI (`pypi_found`) is the
+   source of truth — a build may still show `inProgress` in ADO after the publish has succeeded, so
+   treat a 200 on PyPI as success even if the ADO result is not yet `succeeded`.
+5. Update the row (`last_build_id`, `last_result`, `attempts += 1`). On PyPI hit set `registered = 1`;
+   on 429 failure leave `registered = 0` so it stays a candidate. Do **not** stop the schedule.
+6. Only **one** trigger per tick to respect the rate limit; the loop fires again next interval.
+
+Report progress after each tick (e.g. "2 of 4 registered") and stop only when all names are on PyPI.
+
 ## Rules
 
 - Always use `az` CLI for Azure DevOps authentication (never ask for PAT tokens).
+- For a **single** name, if the reservation fails with the **429 throttle**, retry it — **at least
+  5 attempts, spaced out, until it succeeds** (see Step 4). For any **non-429** failure, keep the
+  fast-fail behavior (report the build URL and stop). The multi-name retry loop above applies when the
+  user asks to reserve several names and wants them all registered over time.
+- Never trigger more than one new-name reservation at a time; space batch triggers ~1 hour apart.
+- A 429 `Too many new projects created` ESRP failure is external throttling on the shared `azure-sdk`
+  PyPI account — retry later, do NOT debug the pipeline or treat it as a config error.
 - ADO org is always `https://dev.azure.com/azure-sdk`, project is always `internal`, definitionId is `8013`.
 - Template parameters (`NameForReservation`, `VersionForReservation`) must be passed in the
   `templateParameters` field (a JSON object), **not** in `parameters`.
