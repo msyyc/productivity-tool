@@ -125,15 +125,12 @@ def download_sdist(package: str, version: str, dest: Path, pypi_data: dict | Non
         (
             f
             for f in files
-            if f.get("packagetype") == "sdist"
-            or f.get("filename", "").endswith((".tar.gz", ".tgz", ".zip"))
+            if f.get("packagetype") == "sdist" or f.get("filename", "").endswith((".tar.gz", ".tgz", ".zip"))
         ),
         None,
     )
     if not sdist_meta:
-        raise SystemExit(
-            f"No sdist (.tar.gz/.zip) published on PyPI for {package}=={version}."
-        )
+        raise SystemExit(f"No sdist (.tar.gz/.zip) published on PyPI for {package}=={version}.")
     url = sdist_meta["url"]
     out = dest / sdist_meta["filename"]
     log(f"Downloading sdist {sdist_meta['filename']} from PyPI...")
@@ -285,8 +282,7 @@ def check_deprecation(package: str) -> tuple[str, str | None, str | None, str | 
         return "files_missing", None, None, None
     pkg_dir = candidates[0]
     sdk_repo_url = (
-        "https://github.com/Azure/azure-sdk-for-python/tree/main/"
-        f"sdk/{pkg_dir.parent.name}/{pkg_dir.name}"
+        "https://github.com/Azure/azure-sdk-for-python/tree/main/" f"sdk/{pkg_dir.parent.name}/{pkg_dir.name}"
     )
     readme = pkg_dir / "README.md"
     changelog = pkg_dir / "CHANGELOG.md"
