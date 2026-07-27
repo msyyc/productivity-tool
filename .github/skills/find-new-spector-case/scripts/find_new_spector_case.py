@@ -28,6 +28,7 @@ DEFAULT_SKILL_URL = (
 DEFAULT_ISSUE_REPO = "microsoft/typespec"
 DEFAULT_LABEL = "emitter:client:python"
 DEFAULT_ASSIGNEE = "copilot-swe-agent[bot]"
+DEFAULT_NPM_REGISTRY = "https://pkgs.dev.azure.com/azure-sdk/public/_packaging/azure-sdk-for-js/npm/registry/"
 
 
 @dataclass(frozen=True)
@@ -68,12 +69,15 @@ def fetch_package_json(url: str) -> dict[str, Any]:
     return data
 
 
-def fetch_npm_time_data(package_name: str) -> dict[str, str]:
+def fetch_npm_time_data(package_name: str, npm_registry: str | None) -> dict[str, str]:
     npm_command = shutil.which("npm") or shutil.which("npm.cmd")
     npm_stderr = "npm was not found on PATH"
     if npm_command:
+        npm_args = [npm_command, "view", package_name, "time", "--json"]
+        if npm_registry:
+            npm_args.append(f"--registry={npm_registry}")
         proc = subprocess.run(
-            [npm_command, "view", package_name, "time", "--json"],
+            npm_args,
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -225,6 +229,7 @@ def check_package(
     skill_url: str,
     label: str,
     assignee: str,
+    npm_registry: str | None,
     limit: int,
     dry_run: bool,
     include_agent_assignment: bool,
@@ -239,7 +244,7 @@ def check_package(
         return [ReportRow(package_check.package_name, "", "skipped", "package not found in devDependencies")]
 
     version_a = version_specifier_to_version(str(pinned_specifier))
-    time_data = fetch_npm_time_data(package_check.package_name)
+    time_data = fetch_npm_time_data(package_check.package_name, npm_registry)
     version_b = latest_published_version(time_data)
     if not version_b:
         return [ReportRow(package_check.package_name, "", "skipped", "could not determine latest npm version")]
@@ -338,6 +343,11 @@ def main() -> int:
     parser.add_argument("--skill-url", default=DEFAULT_SKILL_URL, help="Skill URL to put in created issue bodies")
     parser.add_argument("--label", default=DEFAULT_LABEL, help="Issue label to apply")
     parser.add_argument("--assignee", default=DEFAULT_ASSIGNEE, help="Issue assignee")
+    parser.add_argument(
+        "--npm-registry",
+        default=DEFAULT_NPM_REGISTRY,
+        help="npm registry to use for package publish times",
+    )
     parser.add_argument("--limit", type=int, default=200, help="Maximum merged PRs to inspect per package")
     parser.add_argument(
         "--dry-run", action="store_true", help="Report issues that would be created without creating them"
@@ -360,6 +370,7 @@ def main() -> int:
                 args.skill_url,
                 args.label,
                 args.assignee,
+                args.npm_registry,
                 args.limit,
                 args.dry_run,
                 not args.no_agent_assignment,

@@ -18,6 +18,7 @@ This replaces the disabled `python-check-spec-tests.yml` workflow behavior with 
 ## Default Inputs
 
 - TypeSpec package file: `https://raw.githubusercontent.com/microsoft/typespec/main/packages/http-client-python/package.json`
+- npm registry for publish times: `https://pkgs.dev.azure.com/azure-sdk/public/_packaging/azure-sdk-for-js/npm/registry/`
 - Issue repo: `microsoft/typespec`
 - Test-writing skill URL used in issue bodies: `https://github.com/microsoft/typespec/blob/main/.github/skills/python-sdk-spector-mock-api-tests/SKILL.md`
 - Packages checked:
@@ -39,6 +40,7 @@ Optional overrides:
 python <skill-dir>/scripts/find_new_spector_case.py `
   --issue-repo microsoft/typespec `
   --skill-url https://github.com/microsoft/typespec/blob/main/.github/skills/python-sdk-spector-mock-api-tests/SKILL.md `
+  --npm-registry https://pkgs.dev.azure.com/azure-sdk/public/_packaging/azure-sdk-for-js/npm/registry/ `
   --limit 200
 ```
 
@@ -50,7 +52,7 @@ For each configured spec package:
 
 1. Fetches `packages/http-client-python/package.json` from `microsoft/typespec` `main`.
 2. Reads the pinned package version from `devDependencies`.
-3. Reads npm publish timestamps and finds the most recently published version, including prerelease/dev versions.
+3. Reads npm publish timestamps from the Azure SDK public npm feed and finds the most recently published version, including prerelease/dev versions.
 4. If the latest published version is newer than the pinned version, searches merged PRs in the source repo by merge date.
 5. Checks each merged PR's changed files and keeps PRs touching the configured specs path.
 6. For each matching PR, checks whether an issue already exists whose title contains the PR URL.
