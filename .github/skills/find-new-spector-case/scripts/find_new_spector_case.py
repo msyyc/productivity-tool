@@ -22,7 +22,9 @@ from typing import Any
 
 
 PACKAGE_JSON_URL = "https://raw.githubusercontent.com/microsoft/typespec/main/packages/http-client-python/package.json"
-DEFAULT_SKILL_URL = "https://github.com/microsoft/typespec/blob/main/.github/skills/python-sdk-spector-mock-api-tests/SKILL.md"
+DEFAULT_SKILL_URL = (
+    "https://github.com/microsoft/typespec/blob/main/.github/skills/python-sdk-spector-mock-api-tests/SKILL.md"
+)
 DEFAULT_ISSUE_REPO = "microsoft/typespec"
 DEFAULT_LABEL = "emitter:client:python"
 DEFAULT_ASSIGNEE = "copilot-swe-agent[bot]"
@@ -93,7 +95,9 @@ def fetch_npm_time_data(package_name: str) -> dict[str, str]:
 
 
 def latest_published_version(time_data: dict[str, str]) -> str | None:
-    versions = [(version, timestamp) for version, timestamp in time_data.items() if version not in {"created", "modified"}]
+    versions = [
+        (version, timestamp) for version, timestamp in time_data.items() if version not in {"created", "modified"}
+    ]
     if not versions:
         return None
     versions.sort(key=lambda item: item[1])
@@ -243,9 +247,17 @@ def check_package(
     date_a = time_data.get(version_a)
     date_b = time_data.get(version_b)
     if not date_a:
-        return [ReportRow(package_check.package_name, "", "skipped", f"could not find publish date for pinned version {version_a}")]
+        return [
+            ReportRow(
+                package_check.package_name, "", "skipped", f"could not find publish date for pinned version {version_a}"
+            )
+        ]
     if not date_b:
-        return [ReportRow(package_check.package_name, "", "skipped", f"could not find publish date for latest version {version_b}")]
+        return [
+            ReportRow(
+                package_check.package_name, "", "skipped", f"could not find publish date for latest version {version_b}"
+            )
+        ]
 
     eprint(f"Pinned {version_a} published at {date_a}; latest {version_b} published at {date_b}")
     if date_b <= date_a:
@@ -279,7 +291,9 @@ def check_package(
         eprint(f"Created issue for {source_pr_url}: {issue_url}")
 
     if not rows:
-        rows.append(ReportRow(package_check.package_name, "", "skipped", f"no merged PRs touched {package_check.specs_path}"))
+        rows.append(
+            ReportRow(package_check.package_name, "", "skipped", f"no merged PRs touched {package_check.specs_path}")
+        )
     return rows
 
 
@@ -310,7 +324,9 @@ def build_report(rows: list[ReportRow]) -> str:
 
     for row in rows:
         source_pr = markdown_link(row.source_pr_url)
-        issue_or_reason = markdown_link(row.issue_or_reason) if row.issue_or_reason.startswith("http") else row.issue_or_reason
+        issue_or_reason = (
+            markdown_link(row.issue_or_reason) if row.issue_or_reason.startswith("http") else row.issue_or_reason
+        )
         lines.append(f"| {row.package_name} | {source_pr} | {row.action} | {issue_or_reason} |")
     return "\n".join(lines)
 
@@ -323,7 +339,9 @@ def main() -> int:
     parser.add_argument("--label", default=DEFAULT_LABEL, help="Issue label to apply")
     parser.add_argument("--assignee", default=DEFAULT_ASSIGNEE, help="Issue assignee")
     parser.add_argument("--limit", type=int, default=200, help="Maximum merged PRs to inspect per package")
-    parser.add_argument("--dry-run", action="store_true", help="Report issues that would be created without creating them")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Report issues that would be created without creating them"
+    )
     parser.add_argument(
         "--no-agent-assignment",
         action="store_true",
