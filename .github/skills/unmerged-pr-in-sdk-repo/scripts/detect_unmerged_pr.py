@@ -4,15 +4,14 @@
 Selection criteria (a PR is reported only if ALL hold):
   1. Title starts with ``[AutoPR azure-mgmt-``.
   2. The PR is open (not merged / not closed).
-  3. The PR has been APPROVED by the given reviewer (default: ``msyyc``).
-  4. The SDK version in the PR is NOT the excluded version (default: ``1.0.0b1``).
+    3. The SDK version in the PR is NOT the excluded version (default: ``1.0.0b1``).
 
 The SDK version is read from the added line of the package ``_version.py`` in the
 PR diff. If that is unavailable, it falls back to the latest version heading in
 ``CHANGELOG.md``.
 
 Output: a markdown table with columns
-  PR link | sdk name | PR created time | PR approved time
+    id | PR link | sdk name | sdk version | PR created time | PR approved time | new commit after approval | release plan
 
 All GitHub access goes through the GitHub CLI (``gh``).
 """
@@ -25,11 +24,20 @@ import re
 import subprocess
 import sys
 from typing import Optional
+from urllib.parse import parse_qs, urlparse
 
 TITLE_PREFIX = "[AutoPR azure-mgmt-"
 SDK_NAME_RE = re.compile(r"^\[AutoPR\s+(azure-mgmt-[^\]]+)\]")
 VERSION_ADD_RE = re.compile(r'^\+\s*VERSION\s*=\s*["\']([^"\']+)["\']', re.MULTILINE)
 CHANGELOG_HEADING_RE = re.compile(r"^##\s+([0-9][^\s(]*)", re.MULTILINE)
+RELEASE_PLAN_LABEL_RE = re.compile(
+    r"(?:\*\*)?release plan(?:\s+link)?(?:\*\*)?\s*[:：-]\s*(.+)", re.IGNORECASE | re.DOTALL
+)
+RELEASE_PLAN_SECTION_RE = re.compile(
+    r"^#{1,6}\s*release plan\s*\n(.*?)(?=\n#{1,6}\s+|\Z)", re.IGNORECASE | re.MULTILINE | re.DOTALL
+)
+MARKDOWN_LINK_RE = re.compile(r"\[[^\]]*\]\((https?://[^)\s]+)\)", re.IGNORECASE)
+HTTP_LINK_RE = re.compile(r"https?://\S+", re.IGNORECASE)
 
 
 def run_gh(args: list[str]) -> str:
@@ -86,12 +94,33 @@ def approved_time(repo: str, number: int, reviewer: str) -> Optional[str]:
         ]
     )
     reviews = json.loads(out).get("reviews", [])
+    return approved_time_from_reviews(reviews, reviewer)
+
+
+def approved_time_from_reviews(reviews: list[dict], reviewer: str) -> Optional[str]:
+    """Return the latest APPROVED review submittedAt for ``reviewer`` from review data."""
     approvals = [
         r["submittedAt"]
         for r in reviews
         if r.get("author", {}).get("login") == reviewer and r.get("state") == "APPROVED" and r.get("submittedAt")
     ]
     return max(approvals) if approvals else None
+
+
+def pr_details(repo: str, number: int) -> dict:
+    """Read PR reviews, commits, and body in one GitHub CLI call."""
+    out = run_gh(
+        [
+            "pr",
+            "view",
+            str(number),
+            "--repo",
+            repo,
+            "--json",
+            "reviews,commits,body",
+        ]
+    )
+    return json.loads(out)
 
 
 def sdk_version(repo: str, number: int) -> Optional[str]:
@@ -122,6 +151,70 @@ def sdk_version(repo: str, number: int) -> Optional[str]:
     return None
 
 
+def has_commits_after_approval(repo: str, number: int, approved_iso: str) -> str:
+    """Return Yes when the PR has any commit after the approval timestamp."""
+    out = run_gh(
+        [
+            "pr",
+            "view",
+            str(number),
+            "--repo",
+            repo,
+            "--json",
+            "commits",
+        ]
+    )
+    commits = json.loads(out).get("commits", [])
+    return has_commits_after_approval_from_commits(commits, approved_iso)
+
+
+def has_commits_after_approval_from_commits(commits: list[dict], approved_iso: str) -> str:
+    """Return Yes when any commit data is newer than the approval timestamp."""
+    for commit in commits:
+        committed_at = commit.get("committedDate")
+        if committed_at and committed_at > approved_iso:
+            return "Yes"
+    return "No"
+
+
+def release_plan(repo: str, number: int) -> str:
+    """Extract release plan from the PR description."""
+    out = run_gh(
+        [
+            "pr",
+            "view",
+            str(number),
+            "--repo",
+            repo,
+            "--json",
+            "body",
+        ]
+    )
+    return extract_release_plan(json.loads(out).get("body") or "")
+
+
+def extract_release_plan(body: str) -> str:
+    """Extract a release plan link from a labeled line or markdown section."""
+    label_match = RELEASE_PLAN_LABEL_RE.search(body)
+    if label_match:
+        return _first_http_link(label_match.group(1)) or "unknown"
+
+    section_match = RELEASE_PLAN_SECTION_RE.search(body)
+    if section_match:
+        return _first_http_link(section_match.group(1)) or "unknown"
+
+    return "unknown"
+
+
+def _first_http_link(text: str) -> Optional[str]:
+    markdown_match = MARKDOWN_LINK_RE.search(text)
+    if markdown_match:
+        return markdown_match.group(1)
+
+    match = HTTP_LINK_RE.search(text)
+    return match.group(0).rstrip(".,);]") if match else None
+
+
 def _parse_paginated_json(text: str) -> list[dict]:
     """Parse output of ``gh api --paginate`` which may concatenate JSON arrays."""
     text = text.strip()
@@ -141,12 +234,53 @@ def iso_to_date(iso: Optional[str]) -> str:
 
 def build_markdown(rows: list[dict]) -> str:
     lines = [
-        "| PR link | sdk name | sdk version | PR created time | PR approved time |",
-        "| --- | --- | --- | --- | --- |",
+        "| id | PR link | sdk name | sdk version | PR created time | PR approved time | new commit after approval | release plan |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
-    for r in rows:
-        lines.append(f"| {r['url']} | {r['sdk_name']} | {r['version']} | {r['created']} | {r['approved']} |")
+    for index, r in enumerate(rows, start=1):
+        lines.append(
+            "| "
+            + " | ".join(
+                [str(index)]
+                + [
+                    _format_markdown_cell(r[key])
+                    for key in [
+                        "url",
+                        "sdk_name",
+                        "version",
+                        "created",
+                        "approved",
+                        "new_commit_after_approval",
+                        "release_plan",
+                    ]
+                ]
+            )
+            + " |"
+        )
     return "\n".join(lines)
+
+
+def sort_rows(rows: list[dict]) -> list[dict]:
+    """Sort report rows by PR created date, newest first."""
+    return sorted(rows, key=lambda row: row["created"], reverse=True)
+
+
+def _format_markdown_cell(value: object) -> str:
+    text = str(value)
+    if HTTP_LINK_RE.fullmatch(text):
+        return f"[{_link_label(text)}]({text})"
+    return text.replace("|", r"\|")
+
+
+def _link_label(url: str) -> str:
+    parsed = urlparse(url)
+    query = parse_qs(parsed.query)
+    release_plan_ids = query.get("releaseplan") or query.get("releasePlan")
+    if release_plan_ids and release_plan_ids[0].isdigit():
+        return release_plan_ids[0]
+
+    last_segment = parsed.path.rstrip("/").rsplit("/", 1)[-1]
+    return last_segment if last_segment.isdigit() else "..."
 
 
 def main() -> int:
@@ -184,15 +318,18 @@ def main() -> int:
         if not sdk_name:
             continue
 
-        approved = approved_time(args.repo, number, args.reviewer)
-        if not approved:
-            print(f"#  PR #{number} {sdk_name}: not approved by {args.reviewer}, skip", file=sys.stderr)
-            continue
+        details = pr_details(args.repo, number)
+        approved = approved_time_from_reviews(details.get("reviews", []), args.reviewer)
 
         version = sdk_version(args.repo, number)
         if version == args.exclude_version:
             print(f"#  PR #{number} {sdk_name}: version {version} excluded, skip", file=sys.stderr)
             continue
+
+        new_commit_after_approval = (
+            has_commits_after_approval_from_commits(details.get("commits", []), approved) if approved else "-"
+        )
+        plan = extract_release_plan(details.get("body") or "")
 
         rows.append(
             {
@@ -200,13 +337,17 @@ def main() -> int:
                 "sdk_name": sdk_name,
                 "version": version or "unknown",
                 "created": iso_to_date(pr["createdAt"]),
-                "approved": iso_to_date(approved),
+                "approved": iso_to_date(approved) if approved else "-",
+                "new_commit_after_approval": new_commit_after_approval,
+                "release_plan": plan,
             }
         )
-        print(f"#  PR #{number} {sdk_name}: MATCH (version={version})", file=sys.stderr)
+        print(
+            f"#  PR #{number} {sdk_name}: MATCH (version={version}, approved={iso_to_date(approved) if approved else '-'}, new_commit_after_approval={new_commit_after_approval}, release_plan={plan})",
+            file=sys.stderr,
+        )
 
-    rows.sort(key=lambda r: r["approved"], reverse=True)
-    print(build_markdown(rows))
+    print(build_markdown(sort_rows(rows)))
     return 0
 
 
