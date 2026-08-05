@@ -134,6 +134,42 @@ def build_report(pr: str, repository: str, package_paths: list[str]) -> dict[str
     }
 
 
+def format_report_table(report: dict[str, Any]) -> str:
+    """Format a drift report as a Markdown table."""
+    headers = [
+        "Package",
+        "Status",
+        "First revision",
+        "First API version",
+        "Latest revision",
+        "Latest API version",
+        "Error",
+    ]
+    rows = []
+    for result in report["results"]:
+        rows.append(
+            [
+                result["package_path"],
+                result["status"],
+                report["firstRevision"],
+                result["first_api_version"] or "-",
+                report["latestRevision"],
+                result["latest_api_version"] or "-",
+                (result["error"] or "-").replace("|", "\\|"),
+            ]
+        )
+
+    lines = [
+        f"Repository: {report['repository']}",
+        f"Pull request: {report['pullRequest']}",
+        "",
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
+    ]
+    lines.extend("| " + " | ".join(row) + " |" for row in rows)
+    return "\n".join(lines)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Check SDK _metadata.json apiVersion drift within a pull request")
     parser.add_argument("pr", help="Pull request URL or number")
@@ -155,10 +191,10 @@ def main() -> int:
     try:
         report = build_report(args.pr, args.repo, args.package_paths)
     except CheckUnavailableError as error:
-        print(json.dumps({"status": "unverified", "error": str(error)}, indent=2))
+        print(f"| Status | Error |\n| --- | --- |\n| unverified | {str(error).replace('|', '\\|')} |")
         return 2
 
-    print(json.dumps(report, indent=2))
+    print(format_report_table(report))
     statuses = {result["status"] for result in report["results"]}
     if "changed" in statuses:
         return 1

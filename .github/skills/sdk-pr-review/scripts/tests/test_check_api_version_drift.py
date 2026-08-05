@@ -126,6 +126,38 @@ def test_build_report_detects_api_version_change_from_pr_48445(monkeypatch):
     assert result["first_api_version"] == "2026-05-02-preview"
     assert result["latest_api_version"] == "2026-05-01"
 
+    table = checker.format_report_table(report)
+    assert "| Package | Status | First revision | First API version |" in table
+    assert (
+        f"| {CHANGED_PACKAGE_PATH} | changed | {CHANGED_FIRST_REVISION} | "
+        f"2026-05-02-preview | {CHANGED_LATEST_REVISION} | 2026-05-01 | - |"
+    ) in table
+
+
+def test_format_report_table_escapes_error_column():
+    report = {
+        "repository": checker.DEFAULT_REPOSITORY,
+        "pullRequest": UNCHANGED_PR,
+        "firstRevision": UNCHANGED_FIRST_REVISION,
+        "latestRevision": UNCHANGED_LATEST_REVISION,
+        "results": [
+            {
+                "package_path": UNCHANGED_PACKAGE_PATH,
+                "metadata_path": f"{UNCHANGED_PACKAGE_PATH}/_metadata.json",
+                "status": "unverified",
+                "first_api_version": None,
+                "latest_api_version": None,
+                "error": "missing file | missing field",
+            }
+        ],
+    }
+
+    table = checker.format_report_table(report)
+
+    assert "| unverified |" in table
+    assert "| - |" in table
+    assert "missing file \\| missing field" in table
+
 
 def test_check_package_reports_missing_metadata_as_unverified(monkeypatch):
     def unavailable(repository, metadata_path, revision):

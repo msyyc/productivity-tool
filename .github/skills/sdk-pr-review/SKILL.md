@@ -61,13 +61,13 @@ Run the deterministic checker with every affected package path, even when `_meta
 python .github/skills/sdk-pr-review/scripts/check_api_version_drift.py <pr-url-or-number> <package-path> [<package-path> ...]
 ```
 
-The script gets the ordered commit list from pull request metadata and compares the parsed `apiVersion` at the first and latest commits belonging to the pull request. It does not substitute a first parent, pull request base, or merge base.
+The script gets the ordered commit list from pull request metadata and compares the parsed `apiVersion` at the first and latest commits belonging to the pull request. It does not substitute a first parent, pull request base, or merge base. Its Markdown table contains the package, status, first and latest revisions, both API versions, and any error.
 
-Interpret the JSON `results` and process exit code as follows:
+Interpret each table row and the process exit code as follows:
 
 - Exit `0`, status `unchanged`: the check passed; do not report a finding.
-- Exit `1`, status `changed`: report a `Blocking` finding titled `API version changed` with the package path, `firstRevision` and `first_api_version`, `latestRevision` and `latest_api_version`, and a request to restore the original API version or explain and obtain approval for the change.
-- Exit `2`, status `unverified`: list the check as unverified using the script's `error` value. Do not guess a revision or API version.
+- Exit `1`, status `changed`: report a `Blocking` finding titled `API version changed` with the package, first revision and API version, latest revision and API version, and a request to restore the original API version or explain and obtain approval for the change.
+- Exit `2`, status `unverified`: list the check as unverified using the table's `Error` value. Do not guess a revision or API version.
 
 When multiple packages are checked, interpret each result independently. A process exit code of `1` means at least one package changed; exit `2` means no package changed but at least one package could not be verified.
 
@@ -77,17 +77,20 @@ Do not guess. When a required file or value is absent, determine whether its abs
 
 ## Output Format
 
-Lead with findings ordered by severity. Each finding must include:
+Lead with findings ordered by severity in a Markdown table:
 
-- Severity: `Blocking`, `Warning`, or `Suggestion`.
-- A concise title.
-- A file and line reference when available.
-- The observed evidence.
-- The violated rule and a specific remediation.
+| Severity | Finding | Location | Evidence | Rule | Remediation |
+| --- | --- | --- | --- | --- | --- |
+| `Blocking`, `Warning`, or `Suggestion` | Concise title | File and line when available | Observed evidence | Violated rule | Specific remediation |
 
-Then include:
+Keep one finding per row and preserve full revision and API-version values. Use `None` instead of a findings table when there are no findings.
 
-1. **Unverified checks**: checks that could not be completed and why.
-2. **Review summary**: affected packages and the checks completed.
+Then include unverified checks in a separate table:
+
+| Check | Reason |
+| --- | --- |
+| Check that could not be completed | Exact missing evidence or error |
+
+Use `None` when every check was verified. Finish with a brief **Review summary** naming the affected packages and checks completed.
 
 Do not include a finding for a passing check. If there are no findings, say so clearly and mention any unverified checks or residual risk.
