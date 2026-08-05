@@ -41,7 +41,7 @@ Management SDK PR review
 - [ ] Read the current upstream MGMT SDK Code Review Rules
 - [ ] Identify affected azure-mgmt packages and changed files
 - [ ] Apply every upstream rule and exclusion
-- [ ] Compare _metadata.json apiVersion before and after the PR
+- [ ] Compare _metadata.json apiVersion at the first and latest PR revisions
 - [ ] Report findings and unverified checks
 ```
 
@@ -55,16 +55,21 @@ Execute the authoritative rules directly. Use their current headings as the revi
 
 ### 3. Check API-Version Drift
 
-For each affected package:
+Run the deterministic checker with every affected package path, even when `_metadata.json` is not included in the pull request diff:
 
-1. Find the earliest commit belonging to the pull request.
-2. Use the first parent of that commit as the original revision immediately before the pull request.
-3. Parse the package's `_metadata.json` at the original revision and read its `apiVersion` value.
-4. Parse the same file at the latest pull request commit and read its `apiVersion` value.
-5. Compare the parsed values exactly. Do not compare raw JSON text.
-6. If the values differ, report a `Blocking` finding titled `API version changed` with the package path, original revision and value, latest revision and value, and a request to restore the original API version or explain and obtain approval for the change.
+```powershell
+python .github/skills/sdk-pr-review/scripts/check_api_version_drift.py <pr-url-or-number> <package-path> [<package-path> ...]
+```
 
-If `_metadata.json` or `apiVersion` does not exist at either revision, do not guess a value. List the check as unverified with the missing revision, file, or field. This rule applies even when `_metadata.json` is not included in the pull request diff.
+The script gets the ordered commit list from pull request metadata and compares the parsed `apiVersion` at the first and latest commits belonging to the pull request. It does not substitute a first parent, pull request base, or merge base.
+
+Interpret the JSON `results` and process exit code as follows:
+
+- Exit `0`, status `unchanged`: the check passed; do not report a finding.
+- Exit `1`, status `changed`: report a `Blocking` finding titled `API version changed` with the package path, `firstRevision` and `first_api_version`, `latestRevision` and `latest_api_version`, and a request to restore the original API version or explain and obtain approval for the change.
+- Exit `2`, status `unverified`: list the check as unverified using the script's `error` value. Do not guess a revision or API version.
+
+When multiple packages are checked, interpret each result independently. A process exit code of `1` means at least one package changed; exit `2` means no package changed but at least one package could not be verified.
 
 ### 4. Handle Missing Evidence
 
