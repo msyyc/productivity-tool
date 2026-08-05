@@ -75,22 +75,16 @@ def get_api_version(repository: str, metadata_path: str, revision: str) -> str:
     try:
         response = json.loads(output)
         if response.get("encoding") != "base64":
-            raise CheckUnavailableError(
-                f"{metadata_path} at {revision} did not use base64 content encoding"
-            )
+            raise CheckUnavailableError(f"{metadata_path} at {revision} did not use base64 content encoding")
         content = base64.b64decode(response["content"]).decode("utf-8")
         api_version = json.loads(content)["apiVersion"]
     except CheckUnavailableError:
         raise
     except (json.JSONDecodeError, KeyError, TypeError, ValueError, UnicodeDecodeError) as error:
-        raise CheckUnavailableError(
-            f"Could not read apiVersion from {metadata_path} at {revision}"
-        ) from error
+        raise CheckUnavailableError(f"Could not read apiVersion from {metadata_path} at {revision}") from error
 
     if not isinstance(api_version, str) or not api_version:
-        raise CheckUnavailableError(
-            f"apiVersion in {metadata_path} at {revision} is missing or is not a string"
-        )
+        raise CheckUnavailableError(f"apiVersion in {metadata_path} at {revision} is missing or is not a string")
     return api_version
 
 
@@ -129,8 +123,7 @@ def build_report(pr: str, repository: str, package_paths: list[str]) -> dict[str
     first_revision = commits[0]
     latest_revision = commits[-1]
     results = [
-        check_package(repository, package_path, first_revision, latest_revision)
-        for package_path in package_paths
+        check_package(repository, package_path, first_revision, latest_revision) for package_path in package_paths
     ]
     return {
         "repository": repository,
@@ -142,9 +135,7 @@ def build_report(pr: str, repository: str, package_paths: list[str]) -> dict[str
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Check SDK _metadata.json apiVersion drift within a pull request"
-    )
+    parser = argparse.ArgumentParser(description="Check SDK _metadata.json apiVersion drift within a pull request")
     parser.add_argument("pr", help="Pull request URL or number")
     parser.add_argument(
         "package_paths",
