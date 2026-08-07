@@ -185,7 +185,7 @@ def create_issue(
     source_pr_url: str,
     skill_url: str,
     label: str,
-    assignee: str,
+    assignee: str | None,
     include_agent_assignment: bool,
 ) -> str:
     title = f"[python] add test case for {source_pr_url}"
@@ -194,8 +194,9 @@ def create_issue(
         "title": title,
         "body": body,
         "labels": [label],
-        "assignees": [assignee],
     }
+    if assignee:
+        payload["assignees"] = [assignee]
     if include_agent_assignment:
         payload["agent_assignment"] = {"target_repo": issue_repo, "base_branch": "main"}
 
@@ -228,7 +229,7 @@ def check_package(
     issue_repo: str,
     skill_url: str,
     label: str,
-    assignee: str,
+    assignee: str | None,
     npm_registry: str | None,
     limit: int,
     dry_run: bool,
@@ -343,6 +344,7 @@ def main() -> int:
     parser.add_argument("--skill-url", default=DEFAULT_SKILL_URL, help="Skill URL to put in created issue bodies")
     parser.add_argument("--label", default=DEFAULT_LABEL, help="Issue label to apply")
     parser.add_argument("--assignee", default=DEFAULT_ASSIGNEE, help="Issue assignee")
+    parser.add_argument("--no-assignee", action="store_true", help="Create issues without assigning anyone")
     parser.add_argument(
         "--npm-registry",
         default=DEFAULT_NPM_REGISTRY,
@@ -369,7 +371,7 @@ def main() -> int:
                 args.issue_repo,
                 args.skill_url,
                 args.label,
-                args.assignee,
+                None if args.no_assignee else args.assignee,
                 args.npm_registry,
                 args.limit,
                 args.dry_run,

@@ -44,6 +44,14 @@ python <skill-dir>/scripts/find_new_spector_case.py `
   --limit 200
 ```
 
+When the user asks not to assign new issues to Copilot, add both flags:
+
+```powershell
+python <skill-dir>/scripts/find_new_spector_case.py `
+  --no-agent-assignment `
+  --no-assignee
+```
+
 Use `--dry-run` only when the user explicitly asks to preview without creating issues.
 
 ## What The Script Does
@@ -60,8 +68,8 @@ For each configured spec package:
    - Title: `[python] add test case for <PR URL>`
    - Body: `follow skill <skill-url> to write test case for <PR URL>`
    - Label: `emitter:client:python`
-   - Assignee: `copilot-swe-agent[bot]`
-   - Agent assignment target repo: `microsoft/typespec`, base branch `main`
+   - Assignee: `copilot-swe-agent[bot]`, unless `--no-assignee` is set
+   - Agent assignment target repo: `microsoft/typespec`, base branch `main`, unless `--no-agent-assignment` is set
 8. Prints a markdown summary report to stdout.
 
 ## Output
@@ -84,6 +92,7 @@ Progress and diagnostics are printed to stderr.
 
 - Always run the bundled script for this workflow; do not manually recreate the GitHub/npm queries step by step.
 - By default, create issues directly before reporting, matching the original GitHub Action behavior.
+- If the user asks not to assign issues to Copilot, run with `--no-agent-assignment --no-assignee`.
 - If `gh` is not authenticated or lacks permissions, stop and tell the user to run `gh auth login` or use a token with issue creation permission.
 - If an issue already exists for a source PR, do not create another issue; report it as skipped.
 - If the pinned version is already up to date for a package, report that package as skipped/up-to-date.
