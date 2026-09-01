@@ -1,35 +1,53 @@
 ---
 name: teams-send-message
-description: Send a Microsoft Teams message to a person by alias, UPN, email, display name, or to the signed-in user through Microsoft's Agency CLI. Use when the user asks to send, post, notify, ping, or message someone in Teams, including completion notifications.
+description: Send a Microsoft Teams message to a person, the signed-in user, or a team channel through Microsoft's Agency CLI. Use when the user asks to send, post, notify, ping, or message someone or a channel in Teams, including completion notifications.
 ---
 
 # Send a Teams message with Agency
 
-Use the bundled `send-teams-message.ps1` helper. It resolves the recipient with
-the Agency Microsoft 365 user MCP server, then sends through the Agency Teams
-MCP server.
+Use the bundled `send-teams-message.ps1` helper. It resolves users with the
+Agency Microsoft 365 user MCP server or teams and channels with the Agency
+Teams MCP server, then sends through the Teams MCP server.
 
 ## Usage
 
-Run from PowerShell:
+With no target option, the helper sends to the default channel
+`TaskDone-YuchaoYan`:
 
 ```powershell
 & "<skill-directory>\send-teams-message.ps1" `
-  -Recipient "<alias, UPN, email, display name, me, or self>" `
   -Message "<message>"
 ```
 
-For a rich Teams message:
+Use `-ToPerson` to send to the default person, `Yuchao Yan`:
 
 ```powershell
 & "<skill-directory>\send-teams-message.ps1" `
-  -Recipient "<recipient>" `
-  -Message "<p>Completed: <b>task name</b></p>" `
-  -ContentType html
+  -ToPerson `
+  -Message "<message>"
 ```
+
+Override the defaults with `-Recipient`, a Teams `-ChannelLink`, or team and
+channel display names:
+
+```powershell
+& "<skill-directory>\send-teams-message.ps1" `
+  -ChannelLink "<Teams channel URL>" `
+  -Message "<message>"
+```
+
+The helper calls `ListTeams`, then `ListChannels`, then
+`SendMessageToChannel`. It extracts the team and channel IDs from channel
+links, then verifies both against the list results. Team and channel names
+must match exactly and unambiguously. Never guess or fabricate their IDs.
 
 Optional importance values are `normal`, `high`, and `urgent`. Use `urgent`
 only when the user explicitly requests it.
+
+Channel messages also support `-Subject`, `-Mentions`, `-AdaptiveCardJson`,
+and `-AttachmentsJson`. Mentions, Adaptive Cards, and attachments use the JSON
+formats accepted by Agency. `-AdaptiveCardJson` and `-AttachmentsJson` cannot
+be combined.
 
 ## Rules
 
@@ -37,8 +55,9 @@ only when the user explicitly requests it.
    asks for a test and provides no message text.
 2. Never guess or construct a UPN from a name or alias. Let the helper resolve
    it through Agency.
-3. If the helper reports multiple matches, show the candidates and ask the
-   user to choose one. Do not send until the recipient is unambiguous.
+3. If the helper reports multiple user, team, or channel matches, show the
+   candidates and ask the user to choose one. Do not send until the target is
+   unambiguous.
 4. If Agency is missing, give the installation command printed by the helper.
    Never install Agency without explicit user confirmation.
 5. Treat sending as an external side effect. Run the helper only after the user
