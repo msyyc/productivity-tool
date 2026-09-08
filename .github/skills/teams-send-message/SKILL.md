@@ -8,6 +8,8 @@ description: Send a Microsoft Teams message to a person, the signed-in user, or 
 Use the bundled `send-teams-message.ps1` helper. It resolves users with the
 Agency Microsoft 365 user MCP server or teams and channels with the Agency
 Teams MCP server, then sends through the Teams MCP server.
+The shared Agency transport is in the sibling `common\agency-mcp.ps1`;
+retain that folder when copying this skill.
 
 ## Usage
 
