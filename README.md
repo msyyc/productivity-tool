@@ -1,6 +1,26 @@
 # productivity-tool
 A repo to collect productivity tool
 
+## Teams channel exporter
+
+The [`teams-export` skill](.github/skills/teams-export/SKILL.md) exports a Teams channel's root posts
+created in a date range, with all available replies, to one Markdown file.
+Accepts a copied channel URL or Markdown channel link. Uses Agency directly,
+without a nested AI runtime; timestamps default to the machine's local timezone.
+Ask: "Export this Teams channel to Markdown from 2026-09-01 inclusive to
+2026-09-24 exclusive: `<channel URL>`." The bundled script shows live terminal
+progress; hosts without streaming support must disclose that limitation.
+
+For standalone PowerShell usage and offline tests, see the
+[exporter reference](.github/skills/teams-export/README.md):
+
+```powershell
+$channelUrl = Read-Host 'Paste the Teams channel URL'
+pwsh -NoProfile -File .\.github\skills\teams-export\scripts\Export-TeamsChannel.ps1 `
+    -ChannelUrl $channelUrl -StartTime '2026-09-01' -EndTime '2026-09-24' `
+    -OutputDir '.\teams-export'
+```
+
 ## timer.ps1
 A simple PowerShell timer script for tracking time during tasks.
 
