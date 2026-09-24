@@ -1,6 +1,18 @@
 # productivity-tool
 A repo to collect productivity tool
 
+## Dictation correction
+
+The [`correct-dictation` skill](.github/skills/correct-dictation/SKILL.md) turns
+speech-to-text transcripts into fluent, natural text while preserving meaning,
+tone, and the original language. It corrects likely recognition errors, grammar,
+and punctuation, removes accidental repetition and fillers, and returns only
+copy-ready text without explanations. Ambiguous wording is preserved rather than
+guessed, especially for names, numbers, and technical terms.
+
+Invoke it with `/correct-dictation <transcript>`, or ask:
+"Correct this dictation: um could you please right a short note to the team."
+
 ## GitHub to Teams identity lookup
 
 The [`github-alias-to-teams-alias` skill](.github/skills/github-alias-to-teams-alias/SKILL.md) resolves
