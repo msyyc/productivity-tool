@@ -1,6 +1,25 @@
 # productivity-tool
 A repo to collect productivity tool
 
+## GitHub to Teams identity lookup
+
+The [`github-alias-to-teams-alias` skill](.github/skills/github-alias-to-teams-alias/SKILL.md) resolves
+GitHub usernames to Teams full display names and work emails
+using public GitHub evidence and Agency directory lookup.
+
+```powershell
+pwsh -NoProfile -File .\.github\skills\github-alias-to-teams-alias\lookup-github-teams.ps1 -GithubAlias msyyc
+```
+
+Corroborated results are saved in the Git-ignored
+`.github\skills\github-alias-to-teams-alias\identity.json` alongside the skill
+and reused without network calls.
+Use `-Refresh` to recheck an entry or `-CachePath` to choose another local file.
+Each cached entry stores only `githubAlias`, `teamsAlias` (full display name),
+and `emailAddress`. Uncertain results are returned but not cached.
+Existing version 1 caches are migrated automatically.
+Mappings are corroborated, not authoritative linked-account proof.
+
 ## Teams channel exporter
 
 The [`teams-export` skill](.github/skills/teams-export/SKILL.md) exports a Teams channel's root posts

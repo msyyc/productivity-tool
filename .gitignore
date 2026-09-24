@@ -5,6 +5,8 @@ task_assistant/tasks.json
 task_assistant/annotations.json
 temp/
 .env
+/.local/github-teams-identities.json*
+/.github/skills/github-alias-to-teams-alias/identity.json*
 
 # Generated Teams exports, including raw-data sidecars, in any chosen OutputDir.
 *_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].md
