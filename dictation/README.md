@@ -26,9 +26,10 @@ from this directory:
 python correct_dictation.pyw
 ```
 
-Paste a transcript into Input, click Start, then Copy to put the corrected output
-on the clipboard for Ctrl+V. Text appears as it arrives; Copy is enabled only
-after successful completion. Cancel stops a correction; closing the window
+Paste a transcript into Input and click Start. After the correction finishes,
+edit the output directly if needed, then click Copy to copy your edited text
+for Ctrl+V. Output editing supports undo and is disabled while text is streaming;
+Copy is enabled only after successful completion. Cancel stops a correction; closing the window
 cancels an active request and stops the CLI process.
 
 Keep [dictation_client.py](dictation_client.py) alongside the window script.

@@ -65,6 +65,51 @@ class ClearInputTests(unittest.TestCase):
             self.poll()
             self.assertEqual(str(self.app.clear_button['state']), 'normal')
 
+    def test_completed_output_can_be_edited_and_copied(self):
+        self.app.results.put(('done', 'Corrected text.'))
+        self.poll()
+        self.assertEqual(str(self.app.output['state']), 'normal')
+        self.app.output.delete('1.0', 'end')
+        self.app.output.insert('1.0', 'Edited text.\nSecond line.')
+        with patch.object(self.root, 'clipboard_clear') as clear, \
+                patch.object(self.root, 'clipboard_append') as append:
+            self.app.copy_button.invoke()
+        clear.assert_called_once()
+        append.assert_called_once_with('Edited text.\nSecond line.')
+        self.assertEqual(self.app.status.get(), 'Copied')
+
+    def test_output_editing_supports_undo_without_restoring_old_results(self):
+        self.app.results.put(('done', 'First result.'))
+        self.poll()
+        self.app.output.insert('end', ' Edited.')
+        self.app.output.edit_undo()
+        self.assertEqual(self.app.output.get('1.0', 'end-1c'), 'First result.')
+        self.app.results.put(('done', 'Second result.'))
+        self.poll()
+        with self.assertRaises(tk.TclError):
+            self.app.output.edit_undo()
+        self.assertEqual(self.app.output.get('1.0', 'end-1c'), 'Second result.')
+
+    def test_output_locked_during_streaming_and_after_failed_or_cancelled_request(self):
+        for cancelled in (False, True):
+            self.app.results.put(('done', 'Previous result.'))
+            self.poll()
+            self.app.input.insert('1.0', 'New input')
+            self.app.start()
+            self.assertEqual(str(self.app.output['state']), 'disabled')
+            self.assertEqual(str(self.app.copy_button['state']), 'disabled')
+            self.app.results.put(('text', 'Partial result'))
+            self.poll()
+            self.app.output.insert('end', 'Unwanted edit')
+            self.assertEqual(self.app.output.get('1.0', 'end-1c'), 'Partial result')
+            if cancelled:
+                self.app.cancel()
+            self.app.results.put(('done' if cancelled else 'error', 'Interrupted'))
+            self.poll()
+            self.assertEqual(str(self.app.output['state']), 'disabled')
+            self.assertEqual(self.app.output.get('1.0', 'end-1c'), '')
+            self.app.cancelled.clear()
+
     def test_clear_disabled_when_closing(self):
         self.app.input.insert('1.0', 'Keep while closing')
         self.app.close()

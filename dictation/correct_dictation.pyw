@@ -70,7 +70,8 @@ class DictationWindow:
         self.copy_button = ttk.Button(output_header, text="Copy", command=self.copy, state="disabled")
         self.copy_button.pack(side="right")
         self.output = ScrolledText(frame, wrap="word", font=("Segoe UI", 12),
-                                   height=7, width=30, relief="flat", padx=12, pady=12, state="disabled")
+                                   height=7, width=30, relief="flat", padx=12, pady=12,
+                                   state="disabled", undo=True)
         self.output.grid(row=4, column=0, sticky="nsew")
         self.progress = ttk.Progressbar(frame, mode="indeterminate")
         self.progress.grid(row=5, column=0, sticky="ew", pady=(16, 8))
@@ -155,6 +156,7 @@ class DictationWindow:
             self.input.configure(state="normal")
             if kind == "done" and not self.cancelled.is_set():
                 self.set_output(text)
+                self.output.configure(state="normal")
                 self.copy_button.configure(state="normal")
                 self.status.set("Done")
             else:
@@ -172,6 +174,7 @@ class DictationWindow:
         self.output.configure(state="normal")
         self.output.delete("1.0", "end")
         self.output.insert("1.0", text)
+        self.output.edit_reset()
         self.output.configure(state="disabled")
 
     def copy(self):
