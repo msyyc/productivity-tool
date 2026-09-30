@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 from dictation_client import CorrectionCancelled, DictationClient
 
 
-SKILL = Path(__file__).resolve().parents[1] / '.github/skills/correct-dictation/SKILL.md'
+SKILL = Path(__file__).resolve().parents[2] / '.github/skills/correct-dictation/SKILL.md'
 
 
 class DictationClientTests(unittest.TestCase):

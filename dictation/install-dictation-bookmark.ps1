@@ -26,7 +26,7 @@ if ($Uninstall) {
 
 $appPath = Join-Path $PSScriptRoot 'correct_dictation.pyw'
 $clientPath = Join-Path $PSScriptRoot 'dictation_client.py'
-$skillPath = Join-Path $PSScriptRoot '.github\skills\correct-dictation\SKILL.md'
+$skillPath = Join-Path (Split-Path $PSScriptRoot -Parent) '.github\skills\correct-dictation\SKILL.md'
 foreach ($requiredPath in @($appPath, $clientPath, $skillPath)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         throw "Required file not found: $requiredPath"

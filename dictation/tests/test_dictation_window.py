@@ -8,6 +8,15 @@ from unittest.mock import patch
 WINDOW = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'correct_dictation.pyw'))
 
 
+class SkillPathTests(unittest.TestCase):
+    def test_uses_existing_repository_skill_without_a_local_copy(self):
+        repository = Path(__file__).resolve().parents[2]
+        relative_skill = Path('.github/skills/correct-dictation/SKILL.md')
+        self.assertEqual(WINDOW['SKILL'], repository / relative_skill)
+        self.assertTrue(WINDOW['SKILL'].is_file())
+        self.assertFalse((repository / 'dictation' / relative_skill).exists())
+
+
 class ClearInputTests(unittest.TestCase):
     def setUp(self):
         self.root = tk.Tk()

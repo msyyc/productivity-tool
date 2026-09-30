@@ -13,10 +13,11 @@ guessed, especially for names, numbers, and technical terms.
 Invoke it with `/correct-dictation <transcript>`, or ask:
 "Correct this dictation: um could you please right a short note to the team."
 
-The standalone desktop app, browser bookmark installer, bundled skill, and tests
+The desktop app, browser bookmark installer, and tests
 are in [dictation](dictation). See [dictation/README.md](dictation/README.md) for
-setup and usage. Copy the entire directory, including its `.github` subdirectory,
-to use it on another machine; no Copilot SDK or additional Python packages are needed.
+setup and usage. The app reuses the existing repository skill above; keep the
+repository layout when using it on another machine. No Copilot SDK or additional
+Python packages are needed.
 
 ## GitHub to Teams identity lookup
 

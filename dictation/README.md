@@ -1,9 +1,11 @@
 # Correct Dictation
 
-A standalone desktop window for correcting dictated text using a persistent
-Copilot CLI connection. All app files, the bundled skill, and tests live here.
-Copy this entire directory, including `.github`, to another Windows machine;
-the rest of the productivity-tool repository is not required.
+A desktop window for correcting dictated text using a persistent Copilot CLI
+connection. App files and tests live here; editing instructions come from the
+existing repository [skill](../.github/skills/correct-dictation/SKILL.md).
+Clone or copy the repository to another Windows machine, preserving this
+directory and the root `.github/skills/correct-dictation` directory. Copying
+only this app directory is not sufficient.
 
 ## Requirements
 
@@ -30,9 +32,10 @@ after successful completion. Cancel stops a correction; closing the window
 cancels an active request and stops the CLI process.
 
 Keep [dictation_client.py](dictation_client.py) alongside the window script.
-The app reads the bundled [skill](.github/skills/correct-dictation/SKILL.md).
-This is a copy of the repository's VS Code skill: when updating the original,
-also update this bundled copy to keep their behavior aligned.
+The app reads the existing repository
+[skill](../.github/skills/correct-dictation/SKILL.md) for each correction and
+includes its contents in the prompt. There is no separate app copy to maintain;
+changes to the repository skill apply to the next correction.
 
 ## Browser Bookmark
 

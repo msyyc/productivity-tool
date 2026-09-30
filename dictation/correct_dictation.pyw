@@ -11,7 +11,7 @@ from dictation_client import DictationClient
 
 
 ROOT = Path(__file__).resolve().parent
-SKILL = ROOT / ".github" / "skills" / "correct-dictation" / "SKILL.md"
+SKILL = ROOT.parent / ".github" / "skills" / "correct-dictation" / "SKILL.md"
 
 
 def correct_text(transcript, cancelled=None):
