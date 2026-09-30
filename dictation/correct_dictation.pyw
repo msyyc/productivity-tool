@@ -1,5 +1,6 @@
 """Desktop dictation correction over a persistent, text-only Copilot connection."""
 
+import os
 from pathlib import Path
 import queue
 import threading
@@ -8,6 +9,7 @@ from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
 
 from dictation_client import DictationClient
+from single_instance import WindowsInstance
 
 
 ROOT = Path(__file__).resolve().parent
@@ -23,8 +25,9 @@ def correct_text(transcript, cancelled=None):
 
 
 class DictationWindow:
-    def __init__(self, root):
+    def __init__(self, root, instance=None):
         self.root = root
+        self.instance = instance
         self.results = queue.Queue()
         self.requests = queue.Queue()
         self.client = DictationClient()
@@ -126,6 +129,10 @@ class DictationWindow:
             self.client.close()
 
     def poll(self):
+        if self.instance is not None and self.instance.activation_requested():
+            self.root.deiconify()
+            self.root.lift()
+            self.root.focus_force()
         if self.closing:
             if not self.worker.is_alive():
                 self.root.destroy()
@@ -206,7 +213,18 @@ class DictationWindow:
         self.status.set("Closing...")
 
 
+def main():
+    instance = WindowsInstance() if os.name == "nt" else None
+    try:
+        if instance is not None and not instance.primary:
+            return
+        window = tk.Tk()
+        DictationWindow(window, instance)
+        window.mainloop()
+    finally:
+        if instance is not None:
+            instance.close()
+
+
 if __name__ == "__main__":
-    window = tk.Tk()
-    DictationWindow(window)
-    window.mainloop()
+    main()

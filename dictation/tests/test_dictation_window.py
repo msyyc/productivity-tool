@@ -1,8 +1,9 @@
 from pathlib import Path
+import os
 import runpy
 import tkinter as tk
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 WINDOW = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'correct_dictation.pyw'))
@@ -15,6 +16,18 @@ class SkillPathTests(unittest.TestCase):
         self.assertEqual(WINDOW['SKILL'], repository / relative_skill)
         self.assertTrue(WINDOW['SKILL'].is_file())
         self.assertFalse((repository / 'dictation' / relative_skill).exists())
+
+
+@unittest.skipUnless(os.name == 'nt', 'Windows instance guard')
+class LaunchTests(unittest.TestCase):
+    def test_second_launch_does_not_create_window_or_client(self):
+        instance = Mock(primary=False)
+        main = WINDOW['main']
+        with patch.dict(main.__globals__, {'WindowsInstance': Mock(return_value=instance)}), \
+                patch('tkinter.Tk') as window:
+            main()
+        window.assert_not_called()
+        instance.close.assert_called_once()
 
 
 class ClearInputTests(unittest.TestCase):
@@ -31,6 +44,23 @@ class ClearInputTests(unittest.TestCase):
     def poll(self):
         self.root.after_cancel(self.app.poll_id)
         self.app.poll()
+
+    def test_activation_restores_window_without_replacing_text_or_client(self):
+        self.app.input.insert('1.0', 'Keep input')
+        self.app.set_output('Keep output')
+        client = self.app.client
+        self.app.instance = Mock()
+        self.app.instance.activation_requested.return_value = True
+        with patch.object(self.root, 'deiconify') as restore, \
+                patch.object(self.root, 'lift') as lift, \
+                patch.object(self.root, 'focus_force') as focus:
+            self.poll()
+        restore.assert_called_once()
+        lift.assert_called_once()
+        focus.assert_called_once()
+        self.assertIs(self.app.client, client)
+        self.assertEqual(self.app.input.get('1.0', 'end-1c'), 'Keep input')
+        self.assertEqual(self.app.output.get('1.0', 'end-1c'), 'Keep output')
 
     def test_clear_only_input_and_restore_focus(self):
         self.app.input.insert('1.0', 'Outdated text\nAnother line')

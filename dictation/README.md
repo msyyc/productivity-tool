@@ -32,7 +32,8 @@ for Ctrl+V. Output editing supports undo and is disabled while text is streaming
 Copy is enabled only after successful completion. Cancel stops a correction; closing the window
 cancels an active request and stops the CLI process.
 
-Keep [dictation_client.py](dictation_client.py) alongside the window script.
+Keep [dictation_client.py](dictation_client.py) and
+[single_instance.py](single_instance.py) alongside the window script.
 The app reads the existing repository
 [skill](../.github/skills/correct-dictation/SKILL.md) for each correction and
 includes its contents in the prompt. There is no separate app copy to maintain;
@@ -61,6 +62,15 @@ Click it to open the window directly, without an intermediate webpage. The
 browser may ask to open an external app; browser or organization policy may
 require confirmation every time. Switching to an existing tab alone does not
 launch the app.
+
+On Windows, repeated launches reuse the existing window and CLI process for the
+current user in the same Windows session, even when launched from another copy
+of this app. A minimized window is restored, and existing input, edited output,
+and in-progress corrections are preserved. Windows may restrict foreground
+focus. No local server or additional package is needed. Close any windows opened
+before this update once; older processes do not participate in the instance guard.
+After the window closes, the next launch starts a new instance. A launch during
+shutdown activates the closing window; launch again after shutdown finishes.
 
 The registration persists across restarts. Rerun setup after moving this folder
 or changing Python installations, including when upgrading from the former
