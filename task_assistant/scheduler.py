@@ -1,10 +1,16 @@
 import asyncio
+import logging
+import os
+import subprocess
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from task_assistant.models import Task, TaskStatus
 from task_assistant.pr_monitor import check_ci_status, check_pr_state
 from task_assistant.popup import show_popup
+from task_assistant.email_notification import send_email
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from task_assistant.storage import TaskStore
@@ -13,6 +19,9 @@ if TYPE_CHECKING:
 class Scheduler:
     def __init__(self, store: "TaskStore"):
         self.store = store
+        self.notification_mode = os.environ.get("TASK_ASSISTANT_NOTIFICATION", "email")
+        if self.notification_mode not in ("email", "popup"):
+            raise ValueError("TASK_ASSISTANT_NOTIFICATION must be 'email' or 'popup'")
         self._running_tasks: dict[str, asyncio.Task] = {}
 
     async def start(self):
@@ -54,14 +63,14 @@ class Scheduler:
 
                 pr_title = task.description or f"#{cfg.pr_number}"
                 if state == "MERGED":
-                    self._trigger(task, "PR Merged", f"{pr_title}\n#{cfg.pr_number} in {cfg.repo} has been merged!")
+                    await self._trigger(task, "PR Merged", f"{pr_title}\n#{cfg.pr_number} in {cfg.repo} has been merged!")
                     return
                 if ci == "FAILURE":
-                    self._trigger(task, "CI Failed", f"{pr_title}\nCI checks failed on #{cfg.pr_number} in {cfg.repo}")
+                    await self._trigger(task, "CI Failed", f"{pr_title}\nCI checks failed on #{cfg.pr_number} in {cfg.repo}")
                     return
                 if ci == "ALL_COMPLETE":
                     if cfg.repo not in ("Azure/azure-rest-api-specs", "microsoft/typespec"):
-                        self._trigger(
+                        await self._trigger(
                             task, "CI Passed", f"{pr_title}\nAll CI checks passed on #{cfg.pr_number} in {cfg.repo}"
                         )
                         return
@@ -73,7 +82,7 @@ class Scheduler:
                         "ALL_COMPLETE": "all passed",
                         "UNKNOWN": "unknown",
                     }.get(ci, ci)
-                    self._trigger(
+                    await self._trigger(
                         task,
                         "⏰ PR Monitor Timeout",
                         f"{pr_title}\nTime's up for #{cfg.pr_number} in {cfg.repo}\nCI status: {status_msg}",
@@ -91,7 +100,7 @@ class Scheduler:
             pass
 
     async def _run_reminder(self, task: Task):
-        """Wait until fire_at time, then trigger popup."""
+        """Wait until fire_at time, then notify."""
         cfg = task.reminder
         if not cfg:
             return
@@ -101,14 +110,28 @@ class Scheduler:
             delay = (fire_at - now).total_seconds()
             if delay > 0:
                 await asyncio.sleep(delay)
-            self._trigger(task, "⏰ Reminder", task.description)
+            await self._trigger(task, "⏰ Reminder", task.description)
         except asyncio.CancelledError:
             pass
 
-    def _trigger(self, task: Task, title: str, message: str):
-        """Show popup and update task status."""
+    async def _trigger(self, task: Task, title: str, message: str):
+        """Notify once and persist failures without retrying uncertain sends."""
         task.status = TaskStatus.TRIGGERED
+        task.notification_error = None
         self.store.update(task)
+
+        if self.notification_mode == "email":
+            try:
+                await asyncio.get_running_loop().run_in_executor(None, send_email, title, message, task.link)
+            except (OSError, subprocess.SubprocessError, ValueError, RuntimeError) as exc:
+                task.status = TaskStatus.ERROR
+                task.notification_error = f"Email delivery failed or is unconfirmed: {exc}. Check Sent Items before rerunning."
+                self.store.update(task)
+                logger.exception("Email notification failed for task %s", task.id)
+            finally:
+                self._running_tasks.pop(task.id, None)
+            return
+
         self._running_tasks.pop(task.id, None)
 
         def on_dismiss():

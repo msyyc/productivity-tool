@@ -273,7 +273,7 @@ async function clearHistory() {
 function getStatusText(t) {
   if (t.status === 'triggered') return '✅ Triggered';
   if (t.status === 'dismissed') return '🚫 Dismissed';
-  if (t.status === 'error') return '❌ Error';
+  if (t.status === 'error') return `❌ ${escHtml(t.notification_error || 'Error')}`;
 
   if (t.type === 'pr_monitor' && t.pr_monitor) {
     const pr = t.pr_monitor;

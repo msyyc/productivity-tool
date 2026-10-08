@@ -1,16 +1,17 @@
 # Task Assistant
 
-A background task assistant with a web dashboard, system tray icon, and popup notifications. Helps developers monitor PR CI status and set timed reminders.
+A background task assistant with a web dashboard, system tray icon, and email notifications by default. Helps developers monitor PR CI status and set timed reminders.
 
 ## Features
 
 - **PR CI Monitor** — Watch GitHub PR CI checks and get alerted on failure, success, or merge
   - Special handling for `Azure/azure-rest-api-specs` (only watches "SDK Validation - Python")
   - Polls every 5 minutes via `gh` CLI
-- **Timed Reminder** — Paste a link (Teams, Outlook, etc.) and set a delay; get a popup when time's up
+- **Timed Reminder** — Paste a link (Teams, Outlook, etc.) and set a delay; get an email when time's up
 - **Web Dashboard** — Add/remove tasks, see live CI status, view history at `http://localhost:8347`
 - **System Tray Icon** — Right-click to open dashboard or quit; always accessible from the taskbar
-- **Popup Notifications** — Always-on-top windows with clickable links
+- **Email Notifications** — Alerts sent directly to your signed-in work mailbox through Agency, without an AI session or LLM tokens
+- **Optional Popup Notifications** — Always-on-top windows with clickable links
 
 ## Quick Start
 
@@ -36,6 +37,34 @@ pythonw task_assistant/run.pyw
 
 Then open http://localhost:8347 in your browser (or click the tray icon).
 
+### Notification configuration
+
+The default `email` mode invokes
+`$HOME\.copilot\skills\email-send-message\send-email-message.ps1` using
+PowerShell 7.1+ (`pwsh` on PATH). Install that helper and its sibling
+`common\agency-mcp.ps1`, and sign in to Agency with mailbox access before
+running Task Assistant. Set `TASK_ASSISTANT_EMAIL_HELPER` to override the helper path.
+
+Email subjects reflect the alert status: `Timeout` for reminders and PR monitor
+timeouts, `CI fails`, `CI passes`, or `PR merged`. The body contains only the
+original task URL as plain text, with no description or HTML markup. Outlook
+typically displays full URLs as clickable links, depending on client and security
+settings. Existing active tasks also use the new default.
+Sending runs off the server event loop and does not open popup windows.
+Failures and unconfirmed sends appear as **Error** in task history and are logged.
+There is no automatic retry or popup fallback; check Sent Items before manually
+rerunning a failed task to avoid duplicate mail.
+
+To retain the original popup behavior, set this before launching the app:
+
+```powershell
+$env:TASK_ASSISTANT_NOTIFICATION = "popup"
+python -m task_assistant.main
+```
+
+Unset that variable or set it to `email` to use email. Restart the app after
+changing notification configuration.
+
 ## Usage
 
 ### Add a PR Monitor
@@ -46,7 +75,7 @@ Then open http://localhost:8347 in your browser (or click the tray icon).
 4. Optionally add a description
 5. Click **Create**
 
-The assistant will poll CI status every 5 minutes and show a popup when:
+The assistant will poll CI status every 5 minutes and send an email when:
 - Any CI check fails
 - All CI checks pass (except for `azure-rest-api-specs` and `microsoft/typespec` repos)
 - The PR is merged
@@ -59,7 +88,7 @@ The assistant will poll CI status every 5 minutes and show a popup when:
 4. Set the delay in minutes
 5. Click **Create**
 
-A popup with the clickable link will appear when the timer fires.
+An email containing the link will be sent when the timer fires.
 
 ## REST API
 
@@ -90,6 +119,7 @@ curl -X POST http://localhost:8347/api/tasks \
 
 - Python 3.10+
 - [GitHub CLI (`gh`)](https://cli.github.com/) — required for PR CI monitoring
+- PowerShell 7.1+ and the installed Agency email helper — required for default email notifications
 - Windows (system tray and popup notifications use Windows-specific features)
 
 ## File Structure
@@ -102,6 +132,7 @@ task_assistant/
   scheduler.py     # Asyncio background task scheduler
   pr_monitor.py    # PR CI polling via gh CLI
   popup.py         # tkinter popup notifications
+  email_notification.py # Agency email helper integration (default)
   tray.py          # System tray icon (pystray)
   run.pyw          # Windowless launcher
   static/
