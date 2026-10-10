@@ -4,7 +4,8 @@ param(
     [string]$CachePath = (Join-Path $PSScriptRoot 'identity.json'),
     [switch]$Refresh,
     [string]$EvidenceEmail,
-    [string]$EvidenceUrl
+    [string]$EvidenceUrl,
+    [string]$TeamsAlias
 )
 
 $ErrorActionPreference = 'Stop'
@@ -51,18 +52,20 @@ function Test-WorkEmail {
 
 function Assert-IdentityCache {
     param($Cache)
-    if ($Cache -isnot [System.Collections.IDictionary] -or $Cache.schemaVersion -notin @(1, 2) -or
+    if ($Cache -isnot [System.Collections.IDictionary] -or $Cache.schemaVersion -notin @(1, 2, 3) -or
         $Cache.entries -isnot [System.Collections.IDictionary]) {
         throw 'Invalid identity cache schema. Preserve the file and repair it before retrying.'
     }
     foreach ($key in $Cache.entries.Keys) {
         $entry = $Cache.entries[$key]
-        if ($Cache.schemaVersion -eq 2) {
+        if ($Cache.schemaVersion -in @(2, 3)) {
             if ($entry -isnot [System.Collections.IDictionary] -or $entry.Count -ne 3 -or
+                -not $entry.Contains('emailAddress') -or
                 $key -cnotmatch '^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$' -or $key.Contains('--') -or
                 $entry.githubAlias -cne $key -or
                 $entry.teamsAlias -isnot [string] -or [string]::IsNullOrWhiteSpace($entry.teamsAlias) -or
-                -not (Test-WorkEmail $entry.emailAddress)) {
+                -not ((Test-WorkEmail $entry.emailAddress) -or
+                    ($Cache.schemaVersion -eq 3 -and $null -eq $entry.emailAddress))) {
                 throw "Invalid identity cache entry '$key'."
             }
             continue
@@ -162,8 +165,14 @@ function Invoke-GithubTeamsLookup {
         [string]$CachePath,
         [switch]$Refresh,
         [string]$EvidenceEmail,
-        [string]$EvidenceUrl
+        [string]$EvidenceUrl,
+        [string]$TeamsAlias
     )
+    $providedName = $PSBoundParameters.ContainsKey('TeamsAlias')
+    if ($providedName -and ([string]::IsNullOrWhiteSpace($TeamsAlias) -or
+        $Refresh -or $EvidenceEmail -or $EvidenceUrl)) {
+        throw 'TeamsAlias requires a nonempty supplied display name and cannot be combined with Refresh or email evidence.'
+    }
     $login = $GithubAlias.Trim().ToLowerInvariant()
     if ($login -notmatch '^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$' -or $login.Contains('--')) {
         throw 'Provide a GitHub username, not a URL or email address.'
@@ -215,15 +224,33 @@ function Invoke-GithubTeamsLookup {
             Assert-IdentityCache $cache
         }
         $cached = $cache.entries[$login]
+        $importedName = $false
+        if ($providedName) {
+            if ($cached.emailAddress) {
+                if ($cached.teamsAlias -ine $TeamsAlias.Trim()) {
+                    throw "Supplied name conflicts with the verified cached identity '$login'; refresh or resolve the conflict first."
+                }
+            }
+            else {
+                $cache.schemaVersion = 3
+                $cache.entries[$login] = @{
+                    githubAlias = $login
+                    teamsAlias = $TeamsAlias.Trim()
+                    emailAddress = $null
+                }
+                $cached = $cache.entries[$login]
+                $importedName = $true
+            }
+        }
         $source = 'lookup'
         if ($cached -and -not $Refresh -and -not $EvidenceEmail) {
-            $source = 'cache'
+            $source = $(if ($importedName) { 'user_input' } else { 'cache' })
             $record = @{
                 githubLogin = $login
-                status = 'corroborated'
+                status = $(if ($cached.emailAddress) { 'corroborated' } else { 'name_only' })
                 identity = @{ displayName = $cached.teamsAlias; mail = $cached.emailAddress }
             }
-            if (-not $migrated) {
+            if (-not $migrated -and -not $importedName) {
                 return @{ source = $source; cachePath = $path; record = $record }
             }
         }
@@ -256,6 +283,10 @@ function Invoke-GithubTeamsLookup {
 }
 
 if ($MyInvocation.InvocationName -ne '.') {
+    $nameParameters = @{}
+    if ($PSBoundParameters.ContainsKey('TeamsAlias')) {
+        $nameParameters.TeamsAlias = $TeamsAlias
+    }
     Invoke-GithubTeamsLookup -GithubAlias $GithubAlias -CachePath $CachePath -Refresh:$Refresh `
-        -EvidenceEmail $EvidenceEmail -EvidenceUrl $EvidenceUrl | ConvertTo-Json -Depth 20
+        -EvidenceEmail $EvidenceEmail -EvidenceUrl $EvidenceUrl @nameParameters | ConvertTo-Json -Depth 20
 }

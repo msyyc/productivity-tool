@@ -237,7 +237,7 @@ def test_invalid_input_does_not_query_or_write(lookup, parameters):
     assert not lookup.cache.exists()
 
 
-@pytest.mark.parametrize("content", ["not json", "{}", '{"schemaVersion":3,"entries":{}}'])
+@pytest.mark.parametrize("content", ["not json", "{}", '{"schemaVersion":4,"entries":{}}'])
 def test_invalid_cache_is_not_overwritten(lookup, content):
     lookup.cache.write_text(content)
     result = lookup()
@@ -328,6 +328,117 @@ def test_directory_only_needs_display_name_and_email(lookup):
     result = lookup(users=[{"displayName": USER["displayName"], "mail": USER["mail"]}])
     assert result["error"] is None
     assert result["output"]["record"]["status"] == "corroborated"
+
+
+def test_import_supplied_name_then_offline_cache_hit(lookup):
+    result = lookup(" EXAMPLE ", parameters={"TeamsAlias": " Example Person "}, apiError=True)
+    assert result["error"] is None
+    assert result["events"] == []
+    assert result["output"]["source"] == "user_input"
+    assert result["output"]["record"]["status"] == "name_only"
+    assert result["output"]["record"]["identity"] == {
+        "displayName": "Example Person", "mail": None,
+    }
+    assert json.loads(lookup.cache.read_text()) == {
+        "schemaVersion": 3,
+        "entries": {
+            "example": {
+                "githubAlias": "example", "teamsAlias": "Example Person", "emailAddress": None,
+            }
+        },
+    }
+    saved = lookup.cache.read_bytes()
+    cached = lookup(apiError=True, directoryError=True)
+    assert cached["error"] is None
+    assert cached["events"] == []
+    assert cached["output"]["source"] == "cache"
+    assert cached["output"]["record"] == result["output"]["record"]
+    assert lookup.cache.read_bytes() == saved
+
+
+def test_name_import_preserves_verified_identity_and_rejects_conflict(lookup):
+    lookup()
+    saved = lookup.cache.read_bytes()
+    same = lookup(parameters={"TeamsAlias": "Example Person"}, apiError=True)
+    assert same["error"] is None
+    assert same["events"] == []
+    assert same["output"]["record"]["status"] == "corroborated"
+    assert lookup.cache.read_bytes() == saved
+    conflict = lookup(parameters={"TeamsAlias": "Different Person"})
+    assert "conflicts" in conflict["error"]
+    assert conflict["events"] == []
+    assert lookup.cache.read_bytes() == saved
+
+
+@pytest.mark.parametrize("parameters", [
+    {"TeamsAlias": ""},
+    {"TeamsAlias": " "},
+    {"TeamsAlias": "Example Person", "Refresh": True},
+    {"TeamsAlias": "Example Person", "EvidenceEmail": USER["mail"]},
+    {"TeamsAlias": "Example Person", "EvidenceUrl": "https://example.com"},
+])
+def test_invalid_name_import_does_not_query_or_write(lookup, parameters):
+    result = lookup(parameters=parameters)
+    assert result["error"]
+    assert result["events"] == []
+    assert not lookup.cache.exists()
+
+
+def test_refresh_upgrades_name_only_entry_to_verified_contact(lookup):
+    lookup(parameters={"TeamsAlias": "Example Person"})
+    result = lookup(parameters={"Refresh": True})
+    assert result["error"] is None
+    assert result["output"]["record"]["status"] == "corroborated"
+    assert json.loads(lookup.cache.read_text())["entries"]["example"]["emailAddress"] == USER["mail"]
+
+
+def test_failed_name_only_refresh_preserves_mapping(lookup):
+    lookup(parameters={"TeamsAlias": "Example Person"})
+    saved = lookup.cache.read_bytes()
+    result = lookup(parameters={"Refresh": True}, apiError=True)
+    assert result["error"]
+    assert lookup.cache.read_bytes() == saved
+
+
+@pytest.mark.parametrize("invalid_email", ["", "person@example.com"])
+def test_name_only_cache_rejects_invalid_non_null_email(lookup, invalid_email):
+    lookup(parameters={"TeamsAlias": "Example Person"})
+    cache = json.loads(lookup.cache.read_text())
+    cache["entries"]["example"]["emailAddress"] = invalid_email
+    lookup.cache.write_text(json.dumps(cache))
+    saved = lookup.cache.read_bytes()
+    result = lookup()
+    assert result["error"]
+    assert result["events"] == []
+    assert lookup.cache.read_bytes() == saved
+
+
+def test_name_only_cache_requires_explicit_email_field(lookup):
+    lookup(parameters={"TeamsAlias": "Example Person"})
+    cache = json.loads(lookup.cache.read_text())
+    del cache["entries"]["example"]["emailAddress"]
+    cache["entries"]["example"]["unexpected"] = None
+    lookup.cache.write_text(json.dumps(cache))
+    saved = lookup.cache.read_bytes()
+    result = lookup()
+    assert result["error"]
+    assert result["events"] == []
+    assert lookup.cache.read_bytes() == saved
+
+
+def test_name_import_respects_cache_lock(lookup):
+    result = lookup(parameters={"TeamsAlias": "Example Person"}, locked=True)
+    assert "Cannot lock identity cache" in result["error"]
+    assert result["events"] == []
+    assert not lookup.cache.exists()
+
+
+def test_unresolved_name_only_refresh_removes_mapping(lookup):
+    lookup(parameters={"TeamsAlias": "Example Person"})
+    result = lookup(parameters={"Refresh": True}, users=[])
+    assert result["error"] is None
+    assert result["output"]["record"]["status"] == "not_found"
+    assert json.loads(lookup.cache.read_text())["entries"] == {}
 
 
 def test_default_cache_is_beside_skill_not_working_directory(tmp_path):

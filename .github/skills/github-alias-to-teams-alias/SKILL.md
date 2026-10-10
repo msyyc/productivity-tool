@@ -22,15 +22,27 @@ Keep the sibling `common\agency-mcp.ps1` when copying this skill.
 - GitHub usernames are normalized to lowercase.
 - A `corroborated` cache entry is returned without calling GitHub or Agency,
   even when those tools are unavailable. Output has `source: cache`.
-- A new lookup returns `source: lookup`. Only corroborated identities are
+- A new lookup returns `source: lookup`. Only corroborated live identities are
   persisted. Each saved entry has exactly three fields: `githubAlias`,
   `teamsAlias` (the person's full display name, NOT their corporate short alias),
-  and `emailAddress`. The file has a `schemaVersion: 2` / `entries` envelope.
+  and `emailAddress`. Version 2 caches remain supported. Explicitly importing
+  a name-only mapping upgrades the envelope to `schemaVersion: 3`, which permits
+  `emailAddress: null`.
+- To record a GitHub-to-display-name mapping explicitly supplied by the user,
+  run the helper with `-GithubAlias "<login>" -TeamsAlias "<supplied-name>"`.
+  This performs no network lookup and returns `source: user_input`. Subsequent
+  lookups return `source: cache`, `status: name_only`, and `identity.mail: null`.
+  Do not import inferred names, directory candidates, or guessed emails this way.
+  These entries are not corroborated contacts and cannot disambiguate recipients.
+  Use `-Refresh` or explicit email evidence to verify an email later.
+  Importing the same name preserves an existing verified email; a conflicting
+  name raises an error without changing the cache. Name imports cannot be
+  combined with refresh or email evidence.
 - Search Teams by the returned identity's `displayName`, using `mail` to
   distinguish people with the same name. Never construct an email address.
 - Live output includes status, candidates, evidence, and a lookup timestamp
   for evaluation, but these are NOT saved in the cache. Cached output contains
-  only the login, corroborated status, and identity; it has no verification date.
+  only the login, status, and identity; it has no verification date.
 - Entries do not automatically expire. Use `-Refresh` for stale mappings,
   renamed GitHub accounts, or
   an explicit request to recheck. A failed refresh raises an error and leaves
