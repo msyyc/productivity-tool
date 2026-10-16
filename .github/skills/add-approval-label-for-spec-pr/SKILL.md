@@ -29,12 +29,12 @@ For each existing language breaking label:
 | Existing label | Add label |
 |---|---|
 | `BreakingChange-<Language>-Sdk` | `BreakingChange-<Language>-Sdk-Approved` |
-| `BreakingChange-<Language>-Sdk-Suppression` | `BreakingChange-<Language>-Sdk-Suppression-Approval` |
+| `BreakingChange-<Language>-Sdk-Suppression` | `BreakingChange-<Language>-Sdk-Suppression-Approved` |
 
 Examples:
 
 - `BreakingChange-Python-Sdk` -> `BreakingChange-Python-Sdk-Approved`
-- `BreakingChange-Python-Sdk-Suppression` -> `BreakingChange-Python-Sdk-Suppression-Approval`
+- `BreakingChange-Python-Sdk-Suppression` -> `BreakingChange-Python-Sdk-Suppression-Approved`
 
 Do not infer labels from package names or PR text. Only derive language-specific approval labels from labels already present on the PR.
 
@@ -64,7 +64,7 @@ foreach ($label in $currentLabels) {
         $labelsToAdd.Add("$label-Approved")
     }
     elseif ($label -match '^BreakingChange-(.+)-Sdk-Suppression$') {
-        $labelsToAdd.Add("$label-Approval")
+        $labelsToAdd.Add("$label-Approved")
     }
 }
 
