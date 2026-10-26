@@ -1,6 +1,6 @@
 ---
 name: review-spec-pr-for-python-breaking
-description: Find Azure REST API specs PRs with unapproved Python SDK breaking-change labels, extract breaking items from their Python validation pipeline logs, attribute each item to the current PR, and report whether to recommend approval or human review. Use for Python breaking-change review queues or reviewing a specific spec PR.
+description: Find Azure REST API specs PRs with unapproved Python SDK breaking-change labels, extract breaking items from their Python validation pipeline logs, attribute each item to the current PR, and report whether to recommend approval or human review. Publish public-repository results to a secret Gist by default and return its browser link; keep private-repository results local. Use for Python breaking-change review queues or reviewing a specific spec PR.
 ---
 
 # Review Spec PR for Python Breaking Changes
@@ -9,6 +9,8 @@ Perform a read-only, evidence-based review. Discover candidates using the same
 label rules as `task_assistant\main.py`, then review pipeline findings against the
 exact PR head. Recommend approval or human review; **never approve, add labels,
 post comments, trigger pipelines, or change code** without a separate request.
+The default secret Gist report in section 8 is the only publication authorized
+by invoking this skill; it does not authorize changes to the reviewed PRs.
 
 ## Inputs and prerequisites
 
@@ -346,8 +348,13 @@ recommendations, name the unresolved question or required mitigation, not a
 generic "please review". Legacy breaking labels without a verified live mapping
 require label-policy confirmation; never invent an approval label.
 
-Report in chat by default. Save a report when requested, or in the session
-workspace for a lengthy batch; do not commit reports or downloaded evidence.
+Save the Markdown report in the session workspace. By default, publish the
+public-repository results to a secret Gist using section 8, then put the verified
+browser link first in the final chat response, followed by a brief recommendation
+and required human action. Do not require a separate request for Gist delivery.
+Keep private/internal results local and return their report path separately.
+If the user explicitly requests chat-only or local-only output, do not create a
+Gist. Do not commit reports or downloaded evidence.
 
 ```markdown
 ## Python SDK breaking-change review
@@ -421,16 +428,21 @@ For each explicitly authorized PR:
    present, failures, or a head change during the write. Never claim success
    without verification or silently retry an uncertain write.
 
-## 8. Optional browser report: secret Gist
+## 8. Default browser report: secret Gist
 
-When requested, combine the shareable Markdown reports into a secret GitHub Gist
-and return its browser URL. Keep the action-first summary table at the top.
+Unless the user explicitly requests chat-only or local-only output, combine the
+public-repository Markdown reports into a secret GitHub Gist and return its
+browser URL directly. This is the default delivery step for both single-PR and
+batch reviews, not an optional follow-up. Keep the action-first summary table at
+the top of the report.
 Secret Gists are **unlisted, not private**: anyone with the URL can read them.
 
 - Check each source repository's visibility before publishing. Keep private or
   internal repository reports local, or in a separately authorized
   access-controlled location. Never put their PR identities, titles, snippets,
-  findings, links, or raw logs in a Gist.
+  findings, links, or raw logs in a Gist. Treat unknown visibility as non-public.
+  If no public-repository results are available, skip Gist creation and return
+  the local report path with the reason.
 - Generate a separate public-repositories-only Markdown file; do not upload a
   mixed report and attempt to redact it after publishing. Review the complete
   exact upload file for private content and secrets before sending it.
@@ -440,5 +452,10 @@ Secret Gists are **unlisted, not private**: anyone with the URL can read them.
   is complete, and the returned browser URL is valid. If creation has an
   uncertain outcome, reconcile existing Gists instead of blindly creating
   duplicates.
-- Return the Gist link and the local private-report path separately. Be explicit
-  about coverage and any PRs that still need human review.
+- Put the verified Gist browser link first in the final chat response; do not
+  return only a local path or an offer to create a Gist later. Return any local
+  private-report path separately. Be explicit about coverage and any PRs that
+  still need human review.
+- If Gist creation or verification fails, preserve the local report, state the
+  exact delivery failure, and return its path with a brief recommendation and
+  required human action in chat. Never claim publication without verification.
