@@ -20,6 +20,7 @@ def check_pr_state(repo: str, pr_number: int) -> str:
             capture_output=True,
             text=True,
             timeout=30,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         return result.stdout.strip() if result.returncode == 0 else "UNKNOWN"
     except Exception:
@@ -38,6 +39,7 @@ def check_ci_status(repo: str, pr_number: int) -> str:
             capture_output=True,
             text=True,
             timeout=30,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         if result.returncode != 0 or not result.stdout.strip():
             return "UNKNOWN"

@@ -1,95 +1,159 @@
 ---
 name: unmerged-pr-in-sdk-repo
-description: Use when the user wants to detect unmerged AutoPR SDK pull requests (title starts with "[AutoPR azure-mgmt-") whose SDK version is not 1.0.0b1, and produce a markdown summary of id, PR link, sdk name, created time, approval state, whether new commits were added after approval, and release plan.
+description: Find open, non-draft AutoPR management SDK PRs needing a review label, SDK-maintainer approval, re-review after new commits, or a release plan. Exclude version 1.0.0b1 and report only actionable PRs in four fixed, numbered sections.
 ---
 
 # Unmerged PR in SDK Repo
 
-Detect open (unmerged) SDK pull requests in the SDK repo that meet the selection
-criteria, then output a markdown summary.
+Report only SDK pull requests that need action. This skill is read-only: it does
+not add labels, request reviews, post comments, or change PRs.
 
 ## Selection Criteria
 
-A PR is reported only when **all** hold:
+Inspect PRs only when all hold:
 
-1. Its title starts with `[AutoPR azure-mgmt-`.
-2. It is **open** (not merged, not closed).
-3. Its SDK version is **not** `1.0.0b1`.
+1. The title starts with `[AutoPR azure-mgmt-`.
+2. The PR is open and is not a draft.
+3. Its SDK version is not the excluded version (default `1.0.0b1`).
+
+Ignore drafts entirely, including for release-plan checks. Omit PRs that need no
+action.
 
 ## Output
 
-A markdown table with these columns:
+Output a list, not a table. Keep these section IDs and this order:
 
+### 1. Add `mgmt-review-needed`
+
+List PRs missing this label. Tell the user to add the label manually to trigger
+Copilot review.
+
+### 2. SDK maintainer review needed
+
+List PRs without an effective approval from an SDK maintainer configured in the
+target repository's base-branch `CODEOWNERS`. Show the applicable maintainer
+logins and teams and ask a maintainer to review and approve.
+
+Read CODEOWNERS from GitHub, in GitHub's precedence order: `.github/CODEOWNERS`,
+`CODEOWNERS`, then `docs/CODEOWNERS`. Use the last matching rule for each changed
+file in the SDK package, not owners of unrelated engineering files. Members of
+owner teams count as maintainers. Cache ownership rules and team membership for
+the duration of the scan.
+
+Use the latest opinionated review per maintainer: a later `CHANGES_REQUESTED` or
+`DISMISSED` review invalidates that maintainer's earlier approval; a subsequent
+comment alone does not. Approval by any applicable maintainer is sufficient.
+The former single-login `--reviewer` option is replaced by CODEOWNERS resolution.
+
+If ownership or team membership cannot be resolved, put an explicit
+ownership-verification warning here; do not claim that approval is missing or
+that the PR needs no action.
+
+### 3. SDK maintainer re-review needed
+
+List approved PRs with commits newer than the latest effective SDK-maintainer
+approval. Show the approver and approval date and ask for re-review.
+
+Compare commit timestamps with the approval timestamp. Also flag a different
+current head from the approved commit, so rebases or commits with older
+timestamps cannot hide changes to the reviewed code.
+
+### 4. Release plan needs checking
+
+List PRs where no release-plan link is detected in the description. Ask the SDK
+maintainer to inspect the PR description:
+
+- If the release plan is missing, contact the service team to create and link one.
+- If the link is already present, update this skill's extraction logic.
+
+Detect links after `Release plan:` or `Release plan link:` labels, including
+bold/inline Markdown, inside a `Release plan` heading section, in the value cell
+of a `Release plan` / `Release plan link` Markdown table row (including bold
+labels in the generated `SDK generation details` table), or URLs with a numeric
+`releaseplan` / `releasePlan` query value. Table-row detection does not require
+a particular URL host, path, or query format. For example:
+
+```markdown
+| **Release plan** | [Release plan #36557](https://example.test/plans/36557) |
 ```
-id | PR link | sdk name | sdk version | PR created time (2026-XX-XX) | PR approved time (2026-XX-XX) | new commit after approval | release plan
+
+Do not mistake an unrelated link in another table cell, row, or later section
+for a release plan when the release-plan value is empty.
+
+### Formatting
+
+- Omit empty sections without renumbering the remaining section IDs.
+- A PR may appear in multiple sections when multiple actions apply.
+- Sort each section by full PR creation timestamp, newest first.
+- Each entry includes a clickable `owner/repo#number`, SDK name, and version.
+- If nothing requires action, print exactly `No PRs need action.`
+- Print progress and scan-limit/version warnings to stderr, not in the report.
+
+Example (illustrative):
+
+```markdown
+## 1. Add `mgmt-review-needed`
+
+Add this label manually to trigger Copilot review.
+
+- [Azure/azure-sdk-for-python#42](https://github.com/Azure/azure-sdk-for-python/pull/42) - `azure-mgmt-example` `2.0.0`
+
+## 4. Release plan needs checking
+
+Check the PR description. If the release plan is missing, contact the service team to create and link one. If a link is already present, update this skill to recognize it.
+
+- [Azure/azure-sdk-for-python#42](https://github.com/Azure/azure-sdk-for-python/pull/42) - `azure-mgmt-example` `2.0.0` - no release-plan link detected.
 ```
-
-`id` is a 1-based row number in the final table.
-`PR approved time` is `-` when the reviewer has not approved the PR.
-`new commit after approval` is `Yes` when the PR has at least one commit whose committed time is later than the latest approval by the reviewer; it is `No` when approved with no newer commit, and `-` when not approved.
-`release plan` is extracted from the PR description. The script recognizes the first HTTP link after a `Release plan: ...` / `Release plan link: ...` label or inside a `## Release plan` markdown section; if no release-plan link exists, it reports `unknown`.
-When a table cell is an HTTP link, the script renders it as `[number]({url})` when the URL has a `releaseplan=<number>` / `releasePlan=<number>` query value or ends with a number, or `[...]({url})` otherwise, to keep the displayed table compact.
-
-Rows are sorted by PR created time (newest first).
 
 ## Prerequisites
 
-- **GitHub CLI (`gh`)** installed and authenticated with read access to the SDK repo.
-- **Python 3** available on `PATH`.
+- GitHub CLI (`gh`), authenticated with read access to the SDK repository.
+- Read access to CODEOWNERS teams' membership to verify team-member approvals.
+- Python 3.10+ on `PATH`.
+
+No local SDK repository clone is needed.
 
 ## Inputs
 
-- **repo** (optional): SDK repo. Default `Azure/azure-sdk-for-python`.
-- **reviewer** (optional): approver login. Default `msyyc`.
-- **exclude-version** (optional): version to filter out. Default `1.0.0b1`.
+- **repo**: default `Azure/azure-sdk-for-python`.
+- **exclude-version**: default `1.0.0b1`.
+- **limit**: maximum initial PR listing size; default `500`.
 
 ## Workflow
 
-The steps are stable and fully automated by the bundled Python script — run it directly.
+Run the bundled script directly:
 
 ```powershell
 $env:PYTHONIOENCODING = 'utf-8'
-python <skill-dir>/scripts/detect_unmerged_pr.py
+python <skill-dir>\scripts\detect_unmerged_pr.py
 ```
 
 Optional overrides:
 
 ```powershell
-python <skill-dir>/scripts/detect_unmerged_pr.py `
+python <skill-dir>\scripts\detect_unmerged_pr.py `
   --repo Azure/azure-sdk-for-python `
-  --reviewer msyyc `
   --exclude-version 1.0.0b1 `
   --limit 500
 ```
 
-### What the script does
+The script lists open AutoPRs, skips drafts, and fetches PR labels, body, base and
+head SHAs, changed files, reviews, and commits through `gh`. REST list endpoints
+are paginated. It determines the package version from an added `VERSION` line
+in `_version.py`, falling back to an added version heading in `CHANGELOG.md`.
+It reads ownership at each PR's base commit and prints the action report.
 
-1. Lists open AutoPR PRs via
-   `gh pr list --repo <repo> --search "AutoPR azure-mgmt in:title" --state open --json number,title,url,createdAt`,
-   then keeps only titles starting with `[AutoPR azure-mgmt-`.
-2. Parses the sdk name from the title (e.g. `[AutoPR azure-mgmt-search]-generated-from...` -> `azure-mgmt-search`).
-3. For each PR, reads reviews, commits, and description in one call via
-  `gh pr view <n> --json reviews,commits,body`; if the PR has an `APPROVED` review by the reviewer, the latest such review's `submittedAt` is the approved time. Otherwise, the approved time is `-`.
-4. Determines the SDK version from the PR diff via `gh api repos/<repo>/pulls/<n>/files`:
-   - Primary: the added `VERSION = "..."` line in the package `_version.py`.
-   - Fallback: the latest `##` version heading added in `CHANGELOG.md`.
-5. Drops PRs whose version equals the excluded version (`1.0.0b1`).
-6. Uses the already-fetched PR commits to report whether any commit was committed after the latest approval by the reviewer.
-7. Uses the already-fetched PR description to extract the release plan.
-8. Prints progress to stderr and the final markdown table to stdout.
-
-**Report to user:** the markdown table printed on stdout.
-
-## Notes
-
-- Diagnostic lines are written to **stderr** (prefixed with `#`); the clean markdown
-  table is written to **stdout** — redirect stdout if you need the table alone.
-- The script uses only the GitHub CLI (`gh`); no other network access is required.
+**Report to user:** the report printed on stdout, plus any relevant diagnostic
+warnings. Preserve the fixed section IDs and order.
 
 ## Failure Handling
 
-- If `gh` is not authenticated, the script raises a `RuntimeError` with the `gh` stderr —
-  run `gh auth login` and retry.
-- If a PR listing returns nothing, the table has only its header — report that no PRs matched.
-- `gh pr list --limit` caps how many PRs are inspected; raise `--limit` if some expected PRs
-  are missing from a very large backlog.
+- GitHub command failures raise an error with the original stderr. Resolve the
+  reported authentication/access problem before retrying.
+- Missing/unreadable CODEOWNERS prevents a reliable scan and raises an error.
+- Unreadable team membership is reported as incomplete approval verification in
+  section 2, with the original error; it is never treated as an empty team.
+- Unknown SDK versions are explicitly warned about and displayed as `unknown`,
+  rather than silently excluded.
+- A listing that reaches `--limit` prints a warning. Increase the limit before
+  treating the report as a complete backlog scan.

@@ -149,6 +149,7 @@ def _fetch_pr_title(repo: str, pr_number: int) -> str:
             capture_output=True,
             text=True,
             timeout=15,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
@@ -186,6 +187,7 @@ def _fetch_breaking_prs(repo: str) -> list[dict]:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             if result.returncode != 0:
                 continue
@@ -232,7 +234,7 @@ async def update_breaking_pr_annotation(repo_owner: str, repo_name: str, pr_numb
     return {"ok": True}
 
 
-def main():
+def main(*, reload=True):
     import uvicorn
 
     uvicorn.run(
@@ -240,8 +242,8 @@ def main():
         host="127.0.0.1",
         port=8347,
         log_level="info",
-        reload=True,
-        reload_dirs=[str(Path(__file__).parent)],
+        reload=reload,
+        reload_dirs=[str(Path(__file__).parent)] if reload else None,
     )
 
 

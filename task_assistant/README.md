@@ -37,6 +37,12 @@ pythonw task_assistant/run.pyw
 
 Then open http://localhost:8347 in your browser (or click the tray icon).
 
+The windowless launcher disables development auto-reload and writes startup
+output and errors to `%LOCALAPPDATA%\TaskAssistant\startup.log`.
+To launch from the Start Menu, create a shortcut targeting your Python
+installation's `pythonw.exe`, with the full path to `run.pyw` as its argument
+and the repository root as its **Start in** directory.
+
 ### Notification configuration
 
 The default `email` mode invokes

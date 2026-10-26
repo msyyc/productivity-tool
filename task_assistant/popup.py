@@ -49,6 +49,7 @@ def _spawn_popup(title: str, message: str, link: str, on_dismiss=None):
             text=True,
             capture_output=True,
             timeout=600,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         # Subprocess returns "dismissed" if user clicked dismiss/close
         if on_dismiss and result.stdout.strip() == "dismissed":
