@@ -1,6 +1,6 @@
 ---
 name: review-spec-pr-for-python-breaking
-description: Find Azure REST API specs PRs with unapproved Python SDK breaking-change labels, extract breaking items from their Python validation pipeline logs, attribute each item to the current PR, and report whether to recommend approval or human review. Publish public-repository results to a secret Gist by default and return its browser link; keep private-repository results local. Use for Python breaking-change review queues or reviewing a specific spec PR.
+description: Find Azure REST API specs PRs with unapproved Python SDK breaking-change labels, extract breaking items from their Python validation pipeline logs, attribute each item to the current PR, and report whether to recommend approval or human review. Publish review results from public, private, and internal repositories to a secret Gist by default and return its browser link. Use for Python breaking-change review queues or reviewing a specific spec PR.
 ---
 
 # Review Spec PR for Python Breaking Changes
@@ -349,10 +349,11 @@ generic "please review". Legacy breaking labels without a verified live mapping
 require label-policy confirmation; never invent an approval label.
 
 Save the Markdown report in the session workspace. By default, publish the
-public-repository results to a secret Gist using section 8, then put the verified
-browser link first in the final chat response, followed by a brief recommendation
+results from all reviewed repositories to a secret Gist using section 8, then put
+the verified browser link first in the final chat response, followed by a brief recommendation
 and required human action. Do not require a separate request for Gist delivery.
-Keep private/internal results local and return their report path separately.
+Include private and internal repository results in the same report; do not
+exclude a reviewed PR solely because of repository visibility.
 If the user explicitly requests chat-only or local-only output, do not create a
 Gist. Do not commit reports or downloaded evidence.
 
@@ -431,31 +432,32 @@ For each explicitly authorized PR:
 ## 8. Default browser report: secret Gist
 
 Unless the user explicitly requests chat-only or local-only output, combine the
-public-repository Markdown reports into a secret GitHub Gist and return its
-browser URL directly. This is the default delivery step for both single-PR and
+Markdown reports from public, private, and internal repositories into a secret
+GitHub Gist and return its browser URL directly. This is the default delivery
+step for both single-PR and
 batch reviews, not an optional follow-up. Keep the action-first summary table at
 the top of the report.
 Secret Gists are **unlisted, not private**: anyone with the URL can read them.
 
-- Check each source repository's visibility before publishing. Keep private or
-  internal repository reports local, or in a separately authorized
-  access-controlled location. Never put their PR identities, titles, snippets,
-  findings, links, or raw logs in a Gist. Treat unknown visibility as non-public.
-  If no public-repository results are available, skip Gist creation and return
-  the local report path with the reason.
-- Generate a separate public-repositories-only Markdown file; do not upload a
-  mixed report and attempt to redact it after publishing. Review the complete
-  exact upload file for private content and secrets before sending it.
-- Use `gh gist create <public-report.md> --desc <description>` without `--public`;
+- The user authorizes including review results for private and internal
+  repository PRs in secret Gists. Repository visibility alone must not exclude
+  a result or cause Gist delivery to be skipped, even for a private-only batch.
+  This does not bypass repository access controls or organization policies.
+- Generate one combined Markdown report covering every reviewed candidate.
+  Review the complete exact upload file before publishing. Do not include
+  credentials, secrets, confidential source code, or other sensitive content.
+  If such content cannot be removed without losing required evidence, keep the
+  affected details local and state the exact coverage limitation.
+- Use `gh gist create <report.md> --desc <description>` without `--public`;
   secret is the CLI default. Upload the report only, not raw artifacts/logs.
 - Verify the created Gist's `public` field is `false`, its expected file content
   is complete, and the returned browser URL is valid. If creation has an
   uncertain outcome, reconcile existing Gists instead of blindly creating
   duplicates.
 - Put the verified Gist browser link first in the final chat response; do not
-  return only a local path or an offer to create a Gist later. Return any local
-  private-report path separately. Be explicit about coverage and any PRs that
-  still need human review.
+  return only a local path or an offer to create a Gist later. Return paths for
+  any details retained locally separately. Be explicit about coverage and any
+  PRs that still need human review.
 - If Gist creation or verification fails, preserve the local report, state the
   exact delivery failure, and return its path with a brief recommendation and
   required human action in chat. Never claim publication without verification.
