@@ -1,16 +1,17 @@
 ---
 name: review-spec-pr-for-python-breaking
-description: Find Azure REST API specs PRs with unapproved Python SDK breaking-change labels, extract breaking items from their Python validation pipeline logs, attribute each item to the current PR, and report whether to recommend approval or human review. Publish review results from public, private, and internal repositories to a secret Gist by default and return its browser link. Use for Python breaking-change review queues or reviewing a specific spec PR.
+description: Find Azure REST API specs PRs with unapproved Python SDK breaking-change labels, extract breaking items from their Python validation pipeline logs, attribute each item to the current PR, and report whether to recommend approval or human review. Publish review results from public, private, and internal repositories to a secret Gist by default and return its browser link. On explicit request, create a draft PR targeting the reviewed PR's source branch to add missing Python breaking items to sdk-suppressions.yaml for reviewer judgment. Use for Python breaking-change review queues, reviewing a specific spec PR, or preparing a draft suppression PR.
 ---
 
 # Review Spec PR for Python Breaking Changes
 
-Perform a read-only, evidence-based review. Discover candidates using the same
-label rules as `task_assistant\main.py`, then review pipeline findings against the
-exact PR head. Recommend approval or human review; **never approve, add labels,
+By default, perform a read-only, evidence-based review. Discover candidates using
+the same label rules as `task_assistant\main.py`, then review pipeline findings
+against the exact PR head. Recommend approval or human review; **never approve, add labels,
 post comments, trigger pipelines, or change code** without a separate request.
 The default secret Gist report in section 8 is the only publication authorized
 by invoking this skill; it does not authorize changes to the reviewed PRs.
+Section 9 permits a separate draft suppression PR only on explicit request.
 
 ## Inputs and prerequisites
 
@@ -19,6 +20,8 @@ by invoking this skill; it does not authorize changes to the reviewed PRs.
 - Optional batch size or repository override. Without a review limit, review all
   discovered candidates. For an example/trial request, review one and clearly
   identify the rest as not reviewed.
+- Optional explicit request to create draft suppression PRs for identified
+  reviewed PRs. Follow section 9; a review request alone does not enable writes.
 - Authenticated GitHub CLI (`gh`), PowerShell 7, and access to the linked Azure
   DevOps builds when a full review is required. Public build REST endpoints often
   work without authentication.
@@ -159,6 +162,9 @@ submission.
 
 The remaining evidence-gathering steps apply to packages not covered by the
 verified never-GA shortcut, or when the user explicitly requests a full analysis.
+Preparing a draft suppression PR also requires current-head build provenance
+and exact findings from sections 3-4, including for never-GA packages. It does
+not require completed attribution or an accepted suppression reason.
 
 Read PR metadata, description, comments/reviews, and **all** changed files:
 
@@ -374,6 +380,8 @@ Required human action: <exact approval labels, or specific question/mitigation>.
 Head: <SHA>; diff merge-base: <SHA>; current base: <SHA>; tested merge/base: <SHA or unknown>.
 Evidence: <Python build/log links, state/result, source-head match>.
 Comparison: <published package/version or actual baseline>; coverage: <complete/gaps>.
+Draft suppression PR: <URL, not requested, no missing items, or exact blocker>.
+Suppression review action: <items/reasons for reviewers to accept, revise, or reject, if applicable>.
 
 | Package | Published release evidence | GA status | Acceptance basis |
 |---|---|---|---|
@@ -461,3 +469,77 @@ Secret Gists are **unlisted, not private**: anyone with the URL can read them.
 - If Gist creation or verification fails, preserve the local report, state the
   exact delivery failure, and return its path with a brief recommendation and
   required human action in chat. Never claim publication without verification.
+
+## 9. Optional draft suppression PR: explicit request only
+
+This action is **off by default**. Only an explicit request to prepare a
+suppression PR authorizes editing, committing, pushing a separate branch, and
+opening a **draft** PR for the identified original PRs. A request to review or
+recommend approval alone does not authorize this action.
+
+**Reviewer judgment is the acceptance gate.** Include missing, exactly observed
+Python breaking items even when their cause, justification, or acceptance is
+unresolved. Do not require a **Recommend approval** result or documented
+acceptance basis to prepare the draft. Reviewers decide whether suppressions
+make sense and can revise or close the draft if it is not needed. Creating the
+draft does not approve any break or clear an existing review blocker.
+
+For each authorized original PR:
+
+1. **Pin the source.** Read its current state, head SHA, source repository, and
+   source branch from GitHub metadata. Stop if it is closed or its source branch
+   is unavailable. Use the `pr-stack` skill before creating this dependent PR.
+   The follow-up PR's target repository is the original PR's **source
+   repository**, and its base is the original PR's **source branch**, not the
+   original PR's base branch or an assumed `main`.
+2. **Collect exact missing items.** Verify current-head Python build provenance
+   and recover exact findings using sections 3-4. The never-GA shortcut can
+   still support the review recommendation, but cannot supply suppression
+   entries without pipeline evidence. Locate every applicable
+   `sdk-suppressions.yaml` and inspect the repository's current schema,
+   examples, and validation rules. Compare findings with existing Python
+   entries using that schema's matching rules. Preserve distinct package and
+   sync/async findings; do not invent entries from titles or incomplete logs.
+   If coverage is incomplete, report the gap and do not claim the draft covers
+   all missing items. If no entries are missing, create no branch or PR.
+3. **Prepare only suppression additions.** Create an isolated worktree and a
+   new branch from the pinned original head. Add only missing Python entries;
+   preserve existing entries, comments, formatting, and other languages.
+   Create a missing suppression file only when its path and schema are
+   established. Include available factual context without inventing an
+   acceptance reason. If the schema requires a reason and none is established,
+   use an honest pending-review reason permitted by the schema; otherwise
+   report the exact schema blocker. Unresolved attribution or acceptance alone
+   is not a blocker to drafting.
+4. **Validate and deduplicate.** Run the repository's applicable local YAML and
+   suppression checks, and inspect the complete diff. Verify that every added
+   entry maps to an exact finding and that no unrelated file changed. Search for an existing matching
+   follow-up PR before publishing; reuse its link when it already covers the
+   proposal, and update it only when ownership and authorization permit.
+   Report a closed prior draft rather than automatically reopening or
+   recreating a reviewer-rejected proposal.
+5. **Publish a draft against the source branch.** Recheck the original state,
+   source repository/branch, and head before pushing and creating the PR. If
+   the head changed, refresh evidence and recompute missing entries first.
+   Inspect remotes, permissions, and repository policy. Prefer a new branch in
+   the source organization repository when permitted; use an authorized fork
+   only when necessary and allowed. Never publish private/internal code to an
+   unauthorized fork or push directly to the original source branch. Commit
+   only the suppression files and include required commit trailers. Use
+   `gh pr create --draft` with explicit `--repo`, `--base`, and `--head` for the
+   resolved repositories/branches. Do not substitute `main` if GitHub or
+   permissions prevent the requested target. Do not manually trigger builds;
+   normal push/PR automation may run.
+6. **Link and verify.** Put only the original PR URL in the draft description.
+   Keep evidence, context, unresolved questions, and validation results in the
+   review report, not the draft description. Verify the created PR's URL,
+   `isDraft`, head, target repository/base branch, and changed files. Recheck the
+   original head; report any concurrent change as stale evidence. Reconcile
+   uncertain creation outcomes before any retry. Add the verified link,
+   proposed item count, coverage gaps, and required reviewer action to the
+   section 6 report before publishing the Gist.
+
+Do not mark the draft ready, approve or merge either PR, add approval labels,
+post separate comments, or weaken the section 6 recommendation criteria.
+Those actions require separate authorization. Remove only task-created clean
+local worktrees and temporary scripts; preserve unrelated user changes.
