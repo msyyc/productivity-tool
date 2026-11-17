@@ -141,7 +141,9 @@ If history is unavailable, incomplete, or contradictory, mark GA status
 **Unknown** and do not apply this shortcut.
 
 Record the package, history URL, lookup time, published version evidence, and
-GA status (**Never GA**, **GA exists**, or **Unknown**) in the report.
+GA status (**Never GA**, **GA exists**, or **Unknown**) in local investigation
+records. Include a short linked release-history basis in the reviewer report;
+put supporting version details in an expandable section only when needed.
 
 - **Never GA:** recommend approval directly under this policy. Detailed pipeline
   extraction/attribution is not a prerequisite; retain any findings already
@@ -282,32 +284,65 @@ Never infer "no breaking items" from an empty search or inaccessible artifact.
 
 ## 5. Attribute each item to the current PR
 
-For each finding, independently determine **cause** and **acceptability**:
+For each finding, establish this chain before deciding attribution:
+**released behavior -> generated behavior -> causal definition/configuration
+difference -> introducing change**. Keep the concrete **root cause**,
+**attribution**, and **acceptability** separate.
 
-1. Map the SDK symbol to its operation/model/enum in the spec and client
-   customizations. Inspect immutable merge-base/head files to isolate PR edits,
-   and the pipeline's tested base for any generated baseline comparison. Do not
-   attribute unrelated changes on the current base branch to the PR. Inspect `main.tsp`,
-   `client.tsp`, `tspconfig.yaml`, Swagger/readme tags/directives, dependency
-   versions, versioning decorators, and suppressions as relevant. Use file
-   patches only as an index; missing/truncated patches require full files.
-2. Trace the changed definition through generated SDK output. Cite exact-head
-   spec lines and pipeline/generated output for both before and after behavior.
-   A related filename, PR title, or author's claim alone is insufficient.
-3. Account for the baseline: published SDK versus generated PR output can include
-   changes already on main, dependency/emitter updates, or API-version selection
-   changes. For unclear attribution, compare base/head generation using identical
-   generator/dependencies and the same published baseline, or locate equivalent
-   base-build artifacts. Do not trigger builds or regenerate SDKs without a
-   separate request; ask for missing artifacts/context when needed.
-4. Classify cause as **Current PR**, **Pre-existing / external**, or **Unclear**.
-   Mark pre-existing only with matching base evidence, not just absence from the
-   visible diff. Dependency/config changes made by this PR are PR-caused even
-   when the operation's own file is unchanged.
-5. Assess consumer impact and policy separately. A real breaking change can be
+1. **Verify before and after behavior.** Use the actual detector baseline from
+   section 4. Inspect the released distribution and current-head generated
+   output for the exact symbol, signature, enum value, or property. Read release
+   generation metadata, such as `_metadata.json`, `tsp-location.yaml`, client
+   configuration, and immutable release-tag source. Compare selected API
+   versions, source spec revisions/entrypoints, and emitter/generator versions.
+   Do not assume the released package was generated from the current PR base
+   or configuration. If only release-tag source is available, state that
+   limitation rather than claiming distribution-level verification.
+2. **Trace the mechanism.** Map the SDK symbol to its operation/model/enum and
+   client customization. Inspect immutable merge-base/head definitions and the
+   pipeline's tested base. Check `main.tsp`, `client.tsp`, `tspconfig.yaml`,
+   Swagger/readme tags/directives, dependencies, and versioning decorators.
+   Explain how the difference changes generated output; a related filename or
+   PR title is not a cause. For API-version differences, compare selection with
+   `@added`, `@removed`, rename/type-change decorators, and reachability. A
+   removed operation can also remove types used only by that operation.
+3. **Locate the introducing change.** Trace relevant definition, configuration,
+   or dependency history from the release source through the PR base and head.
+   Follow renamed/moved files and changed entrypoints. Inspect the candidate
+   commit's parent and result; cite the introducing commit or PR when found.
+   Confirm whether the causal condition already exists on the relevant base,
+   rather than inferring this from an unchanged operation or absence from the
+   current diff. Use patches as an index, not a substitute for missing full
+   definitions. Do not attribute unrelated current-base changes to the PR.
+4. **Escalate only unresolved mechanisms.** Complete the static release,
+   configuration, version-gate, and history checks above before treating a
+   missing base-build artifact as a blocker. Equivalent base generation is not
+   required when that evidence establishes the cause and attribution. If
+   compiler/emitter behavior or interacting changes remain uncertain, locate
+   equivalent base-build artifacts using identical generator/dependencies and
+   the same baseline. Do not trigger builds or regenerate SDKs without a
+   separate request. If still unresolved, record the checks attempted, the
+   exact missing evidence, and the owner/action needed; keep the cause unknown
+   rather than presenting a hypothesis as fact.
+5. **Classify attribution.** Use **Current PR**, **Pre-existing / external**, or
+   **Unclear**, separately from a sentence explaining the mechanism. Mark
+   pre-existing only with matching causal base evidence. Dependency/config
+   changes made by this PR are PR-caused even when the operation is unchanged.
+   If the condition is verified on the base but its introducing commit cannot
+   be found, state that historical limit without inventing a commit or owner.
+6. **Assess acceptability.** A real breaking change can be
    intentional, a service-contract correction, or an allowed migration change;
    that does not make it a false positive. A pre-existing finding still needs
    its own disposition; do not automatically waive it.
+
+Maintain a local per-item mapping: exact detector item, package/variant, before
+and after evidence, concrete mechanism, attribution evidence, and disposition.
+Group findings in the report only after verifying that each item shares the
+stated mechanism. Related names or feature membership alone do not prove a
+shared cause. Keep exceptions and unresolved items in separate rows. For types
+removed through reachability, verify the reference chain, not just a version
+decorator on a neighboring declaration. The section 2 never-GA shortcut still
+applies; do not perform or invent attribution merely to fill the report.
 
 When TypeSpec migration is involved, consult the current Python SDK
 [breaking-changes guide](https://github.com/Azure/azure-sdk-for-python/blob/main/doc/dev/mgmt/sdk-breaking-changes-guide.md).
@@ -348,6 +383,25 @@ notes, release history, build metadata, or detailed findings. For a batch, start
 with one numbered summary table covering every candidate. Each detailed PR
 section must also start with its recommendation and human action.
 
+**Write for reviewers, not as an execution transcript.** Focus the visible
+report on what breaks, why it breaks, whether this PR caused it, and the
+required action. Explain a verified shared root cause once, then use a compact
+numbered table for feature groups or individual findings. Give each row a
+specific mechanism and decisive source/log links, not just "Unclear" or
+"Pre-existing". For unresolved rows, name the missing causal evidence.
+
+Keep all exact detector strings, package identities, and sync/async distinctions
+in an expandable section mapped to the numbered rows. Counts must reconcile
+with section 4; grouping must not drop or merge distinct findings. For small
+reviews, exact items can stay in the main table instead of duplicating them.
+Keep routine discovery output, full SHA/provenance inventories, download
+details, validation transcripts, and permission/stack administration in local
+investigation records. Retain a short head/build/baseline line and the linked
+GA/acceptance basis per package. Surface coverage gaps, stale evidence, or
+publication limits prominently when they affect the decision. Include draft
+suppression links/counts and reviewer action only when applicable; omit empty
+"not requested" fields.
+
 For approval recommendations, name the exact approval label(s) that a human
 could add; explicitly state that none were added. For human-review
 recommendations, name the unresolved question or required mitigation, not a
@@ -369,37 +423,65 @@ Gist. Do not commit reports or downloaded evidence.
 | # | PR | Recommendation | Required human action | Key reason |
 |---|---|---|---|---|
 
-No approval labels or reviews were submitted.
-Discovery: repositories scanned, candidate count, errors/caps, reviewed/not reviewed.
+<Batch only: one-line discovery scope and counts; disclose errors/caps and
+unreviewed candidates. Omit the batch table for a single-PR review.>
 
 ### <owner/repo#number>: <title>
 
-Recommendation: **Recommend approval** or **Needs human review**.
-Required human action: <exact approval labels, or specific question/mitigation>.
+**Recommendation: <Recommend approval or Needs human review>.**
+**Required action:** <exact approval labels, or owner and specific mitigation>.
 
-Head: <SHA>; diff merge-base: <SHA>; current base: <SHA>; tested merge/base: <SHA or unknown>.
-Evidence: <Python build/log links, state/result, source-head match>.
-Comparison: <published package/version or actual baseline>; coverage: <complete/gaps>.
-Draft suppression PR: <URL, not requested, no missing items, or exact blocker>.
-Suppression review action: <items/reasons for reviewers to accept, revise, or reject, if applicable>.
+**Root cause:** <verified shared mechanism and decisive evidence, or exact gap>.
+**Attribution:** <Current PR, Pre-existing / external, or Unclear; with evidence>.
+**Release basis:** <package: linked GA status and applicable acceptance basis>.
 
-| Package | Published release evidence | GA status | Acceptance basis |
+| # | Breaking changes (count) | Root cause / attribution and evidence | Required action |
 |---|---|---|---|
+| 1 | <verified group or exact item> | <mechanism, causal history link> | <mitigation or acceptance basis> |
 
-| # | Package / SDK symbol | Exact breaking item | Cause | Evidence | Disposition |
-|---|---|---|---|---|---|
+<Only if applicable: suppression draft link, proposed count, and reviewer action.>
 
-For never-GA shortcuts, mark unperformed pipeline/attribution work as
-**Not assessed - never-GA policy**; do not invent item counts or build provenance.
+Checked <date>: head <short SHA>; [Python build](URL); <released baseline> ->
+<generated version>; <coverage limits, if any>. No approval labels or reviews
+were submitted.
 
-Rationale: <consumer impact and cited acceptance basis, if any>.
+<details>
+<summary>Exact breaking items (<count>), mapped to the rows above</summary>
+
+| Row | Package / variant | Exact detector item | Finding evidence |
+|---|---|---|---|
+| 1 | <package, sync/async if reported> | <unchanged detector string> | <log link> |
+
+</details>
 ```
+
+For never-GA shortcuts, replace unperformed root-cause/build/table fields with
+**Not assessed - never-GA policy** and cite the release-history acceptance
+basis. Do not invent item counts, attribution, or build provenance.
 
 Use fully qualified `owner/repo#number` PR references and immutable source links
 with line ranges. Include evidence for every finding, and distinguish facts from
 inferences. If execution genuinely blocks on user context/access, ask a focused
 question with the available question tool; do not silently choose an approval
 policy.
+
+### Completion checklist
+
+- Every recovered breaking item and suppression has a per-item disposition;
+  exact strings, package/variant identities, group counts, and row mappings
+  reconcile. Unrecovered findings are an explicit coverage gap.
+- Each assessed root cause links before/after behavior to the causal condition
+  and attribution evidence. Unknowns state attempted checks and missing proof.
+  A shared cause is verified for every grouped item, not inferred from names.
+- Recommendations preserve the section 2 policy and section 6 acceptance
+  criteria. Pre-existing or intentional breaks are not automatically accepted.
+- The final head/state/label checks are current. Links reference the intended
+  immutable source and matching build; stale evidence is not presented as current.
+- The visible report prioritizes breaking changes and root causes, with exact
+  items expandable and routine investigation records kept local. Decision-
+  relevant limitations and required actions remain visible.
+- Section 8 delivery is complete and verified, or its exact failure and local
+  report path are stated. No unrequested approval, PR change, or build occurred.
 
 ## 7. Optional approval-label action: explicit request only
 
@@ -443,8 +525,8 @@ Unless the user explicitly requests chat-only or local-only output, combine the
 Markdown reports from public, private, and internal repositories into a secret
 GitHub Gist and return its browser URL directly. This is the default delivery
 step for both single-PR and
-batch reviews, not an optional follow-up. Keep the action-first summary table at
-the top of the report.
+batch reviews, not an optional follow-up. Use the concise section 6 format:
+recommendation/action first, with a summary table at the top for batches only.
 Secret Gists are **unlisted, not private**: anyone with the URL can read them.
 
 - The user authorizes including review results for private and internal
@@ -531,8 +613,9 @@ For each authorized original PR:
    permissions prevent the requested target. Do not manually trigger builds;
    normal push/PR automation may run.
 6. **Link and verify.** Put only the original PR URL in the draft description.
-   Keep evidence, context, unresolved questions, and validation results in the
-   review report, not the draft description. Verify the created PR's URL,
+   Put decision-relevant evidence and unresolved questions in the concise
+   section 6 report, not the draft description; keep routine validation and
+   publication records local. Verify the created PR's URL,
    `isDraft`, head, target repository/base branch, and changed files. Recheck the
    original head; report any concurrent change as stale evidence. Reconcile
    uncertain creation outcomes before any retry. Add the verified link,
